@@ -1,0 +1,15 @@
+{
+  "name": "telephony-manager-sanity",
+  "version": "1.0.0",
+  "description": "UI-based Telephony Manager Sanity Tool",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "ssh2": "^1.14.0"
+  }
+}

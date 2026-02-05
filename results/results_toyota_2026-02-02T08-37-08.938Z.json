@@ -1,0 +1,9 @@
+{
+    "set_hal_nation": {
+        "success": true,
+        "output": "setHalSystemNation  \r\n=========================\r\n 26BEV \r\nLGE_NATION_JP_02 =  1 \r\nLGE_NATION_CN_02 =  3 \r\nLGE_NATION_NA_02 =  5 \r\nLGE_NATION_GB_02 =  15 \r\nsldd region sethalsystemnation <param> -- API_Test",
+        "error": "",
+        "name": "Set Hal System Nation",
+        "command": "adb1 shell sldd region sethalsystemnation 4378"
+    }
+}

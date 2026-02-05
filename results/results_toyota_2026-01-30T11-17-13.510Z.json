@@ -1,0 +1,8 @@
+{
+    "sim_state": {
+        "success": false,
+        "output": "[VALIDATION FAILED]\nExpected pattern: SIM state\\s*:\\s*5\n\nActual Output:\n-----------------------------------------------------------\r\n    Get SIM state\r\n-----------------------------------------------------------\r\n -> SIM state : 1 (Absent)",
+        "command": "adb1 shell sldd telephony getsimstate",
+        "name": "Get SIM State"
+    }
+}

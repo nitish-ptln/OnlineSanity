@@ -92,6 +92,7 @@
                     <span class="bc-item active" id="currentModel">Loading...</span>
                 </div>
                 <div class="top-actions">
+                    <button class="btn-theme-toggle" id="btnThemeToggle" title="Toggle Theme">☀️</button>
                     <button class="btn-secondary" id="btnRefreshDevice">🔄 Refresh Dev info</button>
                     <button class="btn-secondary" id="btnReboot">🔌 Reboot</button>
                     <button class="btn-danger" id="btnClearResults">🗑️ Clear Results</button>
@@ -204,26 +205,63 @@
 
                     <!-- Network IMEI Module -->
                     <div class="custom-module network-module" id="imeiModule">
-                        <div class="module-header"
-                            style="display: flex; justify-content: space-between; align-items: flex-start;">
-                            <div>
-                                <h3>📶 Network IMEI Section</h3>
-                                <p class="module-desc">Write Factory IMEI to the device</p>
-                            </div>
-                            <button class="btn-icon-add" onclick="app.showManageModal('network')"
-                                title="Add Network Test" style="display: none;">➕</button>
+                        <div class="module-header">
+                            <h3>📶 Network Configuration</h3>
+                            <p class="module-desc">Manage IMEI and Preferred Network Type</p>
                         </div>
-                        <div class="module-form">
-                            <div class="module-input-group">
-                                <label>🆔 Target IMEI</label>
-                                <input type="text" id="targetImei" value="351259160001217"
-                                    placeholder="Enter 15-digit IMEI">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+                            <!-- IMEI Section -->
+                            <div class="module-form" style="display: flex; flex-direction: column; gap: 10px;">
+                                <div class="module-input-group">
+                                    <label>🆔 Set IMEI</label>
+                                    <input type="text" id="targetImei" value="351259160001217"
+                                        placeholder="Enter 15-digit IMEI">
+                                </div>
+                                <button class="btn-module-action btn-dial" id="btnSetImei">Set IMEI</button>
+                                <div class="module-result" id="imeiResult" style="margin-top: 5px;"></div>
                             </div>
-                            <button class="btn-module-action btn-dial" id="btnSetImei">
-                                <span>✍️</span> Set IMEI
-                            </button>
+
+                            <!-- Pref Net Type Section -->
+                            <div class="module-form"
+                                style="display: flex; flex-direction: column; gap: 10px; border-left: 1px solid var(--border-color); padding-left: 20px;">
+                                <div class="module-input-group">
+                                    <label>📡 Preferred Network Type</label>
+                                    <select id="prefNetTypeSelect" class="form-control" style="font-size: 0.9rem;">
+                                        <option value="0">0 - WCDMA preferred</option>
+                                        <option value="1">1 - GSM only</option>
+                                        <option value="2">2 - WCDMA only</option>
+                                        <option value="3">3 - GSM & UMTS</option>
+                                        <option value="4">4 - CDMA and EVDO</option>
+                                        <option value="5">5 - CDMA</option>
+                                        <option value="6">6 - EVDO & no CDMA</option>
+                                        <option value="8">8 - LTE, CDMA & EVDO</option>
+                                        <option value="9">9 - LTE, GSM & WCDMA</option>
+                                        <option value="10">10 - LTE, CDMA, EVDO, GSM & WCDMA</option>
+                                        <option value="11" selected>11 - LTE only</option>
+                                        <option value="12">12 - LTE & WCDMA</option>
+                                        <option value="13">13 - TD-SDCAM only</option>
+                                        <option value="14">14 - TD-SDCAM & WCDMA</option>
+                                        <option value="15">15 - TD-SDCAM & LTE</option>
+                                        <option value="16">16 - TD-SDCAM & GSM</option>
+                                        <option value="17">17 - TD-SDCAM, GSM & LTE</option>
+                                        <option value="18">18 - TD-SDCAM, GSM, & WCDMA</option>
+                                        <option value="19">19 - TD-SDCAM, WCDMA & LTE</option>
+                                        <option value="20">20 - TD-SDCAM, GSM, WCDMA & LTE</option>
+                                        <option value="23">23 - NR5G Mode Only</option>
+                                        <option value="25">25 - GSM, WCDMA, LTE AND NR5G</option>
+                                        <option value="26">26 - GSM, WCDMA and NR5G</option>
+                                        <option value="27">27 - GSM, LTE and NR5G</option>
+                                        <option value="28">28 - WCDMA, LTE, NR5G</option>
+                                        <option value="29">29 - GSM and 5G</option>
+                                        <option value="30">30 - WCDMA, 5G</option>
+                                        <option value="31">31 - LTE and 5G</option>
+                                        <option value="50">50 - LTE, GSM</option>
+                                    </select>
+                                </div>
+                                <button class="btn-module-action btn-primary" id="btnSetNetType">Set Type</button>
+                                <div class="module-result" id="netTypeResult" style="margin-top: 5px;"></div>
+                            </div>
                         </div>
-                        <div class="module-result" id="imeiResult"></div>
                     </div>
 
                     <!-- Custom SMS Module (Shared between models that have SMS) -->

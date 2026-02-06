@@ -159,7 +159,8 @@
                 "id": "pref_net_type",
                 "name": "Get Preferred Net Type",
                 "command": "adb1 shell sldd telephony getPrefNetType",
-                "category": "network"
+                "category": "network",
+                "expected": "Preferred network type\\s*:\\s*\\d+"
             },
             {
                 "id": "radio_on",

@@ -50,6 +50,14 @@ class TelephonyManager {
         // DLT Settings
         this.dltPort = localStorage.getItem('dltPort') || '3490';
 
+        // Theme Init
+        this.theme = localStorage.getItem('theme') || 'dark';
+        if (this.theme === 'light') {
+            document.documentElement.classList.add('light-theme');
+            const btn = document.getElementById('btnThemeToggle');
+            if (btn) btn.textContent = '🌙';
+        }
+
         this.init();
     }
 
@@ -314,6 +322,9 @@ class TelephonyManager {
         document.getElementById('btnEndCall').addEventListener('click', () => this.endCall());
         document.getElementById('btnSetRegion').addEventListener('click', () => this.setRegion());
         document.getElementById('btnSetImei').addEventListener('click', () => this.setImei());
+        document.getElementById('btnSetNetType').addEventListener('click', () => this.setPrefNetType());
+        document.getElementById('btnSendSms').addEventListener('click', () => this.sendSms());
+        document.getElementById('btnThemeToggle').addEventListener('click', () => this.toggleTheme());
 
         // Report Column Toggles
         document.querySelectorAll('.export-options input[type="checkbox"]').forEach(box => {
@@ -1821,7 +1832,49 @@ class TelephonyManager {
             }
             this.showToast(result.success ? 'IMEI Write Successful' : 'Failed to write IMEI', result.success);
         } catch (e) {
-            if (resultEl) resultEl.innerHTML = '<div class="result-box fail">Error writing IMEI</div>';
+            if (resultEl) resultEl.innerHTML = '<div class="result-box fail">Error setting IMEI</div>';
+        }
+    }
+
+    async setPrefNetType() {
+        const val = document.getElementById('prefNetTypeSelect').value;
+        const resultEl = document.getElementById('netTypeResult');
+        const btn = document.getElementById('btnSetNetType');
+
+        if (!this.deviceConnected) {
+            return this.showErrorPopup('Device Not Connected', 'No device found!');
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading"></span> Setting...';
+        if (resultEl) resultEl.innerHTML = '';
+
+        try {
+            const cmd = `adb1 shell sldd telephony setprefnettype ${val}`;
+            const response = await this.apiCall('/api/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    command: cmd,
+                    targetSerial: this.deviceSerial
+                })
+            });
+            const data = await response.json();
+
+            // Based on user provided example, expected output is "Result : true"
+            const success = data.output && (data.output.includes('Result : true') || data.output.includes('Result: true'));
+
+            if (resultEl) {
+                resultEl.innerHTML = success
+                    ? `<div class="result-box pass" style="padding: 10px;">✅ Network Type Set (Type: ${val})</div>`
+                    : `<div class="result-box fail" style="padding: 10px;">❌ Failed: ${data.output || 'Unknown error'}</div>`;
+            }
+        } catch (e) {
+            console.error(e);
+            if (resultEl) resultEl.innerHTML = '<div class="result-box fail">Error executing command</div>';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Set Type';
         }
     }
 
@@ -2232,6 +2285,24 @@ class TelephonyManager {
 
     closeModal() { document.getElementById('resultModal').classList.remove('active'); }
 
+    toggleTheme() {
+        const html = document.documentElement;
+        const btn = document.getElementById('btnThemeToggle');
+
+        if (html.classList.contains('light-theme')) {
+            html.classList.remove('light-theme');
+            localStorage.setItem('theme', 'dark');
+            btn.textContent = '☀️';
+            this.theme = 'dark';
+        } else {
+            html.classList.add('light-theme');
+            localStorage.setItem('theme', 'light');
+            btn.textContent = '🌙';
+            this.theme = 'light';
+        }
+    }
+
+    // Utility: Show Toast
     showToast(message, success, duration = 3000) {
         const toast = document.createElement('div');
         toast.className = `toast ${success ? 'success' : 'error'}`;

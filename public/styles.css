@@ -1580,22 +1580,25 @@ select.form-control option {
 }
 
 .sanity-report-table thead {
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-    color: white;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)) !important;
+    color: #ffffff !important;
     position: sticky;
     top: 0;
     z-index: 10;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .sanity-report-table th {
     padding: 14px 10px;
     text-align: left;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
     font-size: 11px;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
     white-space: nowrap;
-    border-bottom: 2px solid var(--accent-primary);
+    color: #ffffff !important;
+    background: transparent !important;
+    border-bottom: none !important;
 }
 
 .sanity-report-table th:nth-child(1) {
@@ -1635,8 +1638,12 @@ select.form-control option {
 /* Result */
 
 .sanity-report-table tbody tr {
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 2px solid #4b5563;
     transition: background 0.2s ease;
+}
+
+.sanity-report-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .sanity-report-table tbody tr:hover {
@@ -1684,16 +1691,17 @@ select.form-control option {
 }
 
 /* Category Header Row */
+/* Category Header Row */
 .report-cat-header {
-    background: linear-gradient(90deg, rgba(99, 102, 241, 0.15), rgba(0, 0, 0, 0.2)) !important;
-    font-weight: 700 !important;
-    color: var(--accent-primary) !important;
-    padding: 15px 20px !important;
-    font-size: 1.1rem !important;
+    background: #1e293b !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    padding: 18px 20px !important;
+    font-size: 1.2rem !important;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
-    border-left: 5px solid var(--accent-primary);
-    text-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
+    letter-spacing: 2px;
+    border-left: 8px solid var(--accent-primary);
+    border-bottom: 2px solid #000000;
 }
 
 /* Status Cell Styles */
@@ -2249,4 +2257,58 @@ html.light-theme .btn-theme-toggle {
 html.light-theme .btn-theme-toggle:hover {
     background-color: #f3f4f6;
     border-color: #9ca3af;
+}
+
+/* Light Theme Report Fixes */
+html.light-theme .sanity-report-table thead {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    /* Deep Indigo/Purple */
+    color: #ffffff;
+}
+
+html.light-theme .sanity-report-table th {
+    border-bottom-color: #4f46e5;
+    color: #ffffff;
+    /* Explicitly white */
+}
+
+/* Fix visibility of code and output blocks in light mode */
+html.light-theme .sanity-report-table code {
+    background: #eef2ff;
+    /* Very light indigo tint */
+    color: #312e81;
+    /* Dark indigo text */
+    border: 1px solid #c7d2fe;
+}
+
+html.light-theme .report-output {
+    background: #f9fafb;
+    /* Light grey */
+    color: #1f2937;
+    /* Dark grey text */
+    border: 1px solid #e5e7eb;
+}
+
+html.light-theme .report-cat-header {
+    background: #e0e7ff !important;
+    /* Light Indigo */
+    color: #3730a3 !important;
+    /* Dark Indigo */
+    border-left-color: #4f46e5;
+    text-shadow: none;
+}
+
+html.light-theme .report-status-cell.report-pass {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+html.light-theme .report-status-cell.report-fail {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+html.light-theme .report-status-cell.report-pending {
+    background-color: #f3f4f6;
+    color: #4b5563;
 }

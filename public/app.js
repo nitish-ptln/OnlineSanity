@@ -451,6 +451,38 @@ class TelephonyManager {
         const isECall = id.toLowerCase().includes('ecall');
         const isSimDependent = simDependentTerms.some(term => id.toLowerCase().includes(term)) && !isECall;
 
+        // DIAL SPECIFIC CHECK: Block normal dial if SIM is Ready but Service is Out of Service
+        if (id === 'dial' && !isECall && this.simState === 5 && !this.isServicePass) {
+            const msg = `SIM is Ready but Service State is Out of Service. Call cannot be placed.`;
+
+            // If Running All (Automated) -> Fail the test
+            if (this.isRunningAll) {
+                this.results[id] = {
+                    success: false,
+                    name: cmd.name,
+                    command: cmd.command,
+                    output: `[BLOCKED] ${msg}`
+                };
+
+                const card = document.getElementById(`card-${id}`);
+                if (card) {
+                    card.classList.remove('pass', 'running');
+                    card.classList.add('fail');
+                    card.querySelector('.btn-result').disabled = false;
+                }
+                this.updateStats();
+                return this.results[id];
+            } else {
+                // If Manual -> Show Popup and Abort
+                this.showErrorPopup('Service Out of Service', msg);
+                const card = document.getElementById(`card-${id}`);
+                const runBtn = card?.querySelector('.btn-run');
+                if (card) { card.classList.remove('running'); }
+                if (runBtn) { runBtn.innerHTML = '▶️ Run'; runBtn.disabled = false; }
+                return { success: false, output: 'Blocked: Out of Service' };
+            }
+        }
+
         if (isSimDependent && this.simState !== 5) {
             // SIM not ready - auto-fail these commands
             const card = document.getElementById(`card-${id}`);
@@ -698,6 +730,9 @@ class TelephonyManager {
 
             // Execute command - no timeout, let it complete naturally
             await this.runCommand(cmd.id, true);
+
+            // Check for Stop AGAIN after command execution for better responsiveness
+            if (this.stopExecution) break;
 
             // Update row with real result
             this.updateReportRow(cmd.id);
@@ -959,7 +994,8 @@ class TelephonyManager {
             const confirmed = confirm(`Are you sure you want to switch the device from ${this.deviceSerial} to ${serial}?\n\nAll your current results will be erased.`);
             if (!confirmed) {
                 // Revert selection
-                document.getElementById('deviceSelector').value = this.deviceSerial;
+                const selector = document.getElementById('deviceSelector');
+                if (selector) selector.value = this.deviceSerial;
                 return;
             }
             // User confirmed: clear results
@@ -981,12 +1017,14 @@ class TelephonyManager {
                 this.showToast(`Selected: ${serial || 'No device'}`, true, 1500);
             }
 
-            // AUTO-LAUNCH DLT FORWARDING
-            if (this.deviceConnected) {
-                this.launchDLT();
-            }
+            // Mark as not connected initially to force status refresh to update UI clean
+            this.deviceConnected = false;
 
-            this.checkDeviceStatus(); // Trigger immediate refresh
+            // AUTO-LAUNCH DLT FORWARDING (will run after status check confirms connection, or force it now)
+            // Better to wait for checkDeviceStatus, but we can try launch if we assume connection
+            // this.launchDLT(); // Let status check handle DLT or user action
+
+            this.checkDeviceStatus(true); // Trigger immediate refresh
         } catch (e) {
             this.showToast('Config update failed', false);
         }
@@ -1009,8 +1047,25 @@ class TelephonyManager {
 
             // Detected disconnection state transition
             if (this.deviceConnected && !data.connected) {
-                // If we detect a disconnection, immediately try to refresh the device list 
-                // to see if a new device appeared (swap scenario) or to clear invalid option
+                // Determine if we have other devices available
+                const hasOthers = data.debug && data.debug.idsFound && data.debug.idsFound.length > 0;
+
+                if (hasOthers) {
+                    // 1. Show Popup indicating target lost but others exist
+                    this.showDeviceDisconnectedPopup(this.deviceSerial, data.debug.idsFound);
+
+                    // 2. Clear current serial to trigger auto-select in fetchDevices
+                    this.deviceSerial = '';
+                    localStorage.removeItem('adbSerial');
+
+                    // 3. Immediately trigger fetchDevices to auto-select the next one
+                    await this.fetchDevices();
+
+                    // 4. Return early to avoid "No Device" red flash; the next loop will pick up new device
+                    return;
+                }
+
+                // If no devices at all, proceed to show "No Device" status
                 this.fetchDevices();
             }
 
@@ -1021,6 +1076,10 @@ class TelephonyManager {
 
             this.deviceConnected = data.connected;
             this.simState = data.extraInfo ? data.extraInfo.simState : -1;
+            // Save Service State for Dial logic checks
+            this.serviceState = data.extraInfo ? data.extraInfo.serviceState : '-';
+            this.isServicePass = data.extraInfo ? data.extraInfo.isServicePass : false;
+
             this.updateUIWithStatus(data);
         } catch (e) {
             // Only show popups for connection errors if we previously thought we were connected
@@ -1945,13 +2004,16 @@ class TelephonyManager {
             <head>
                 <meta charset="UTF-8">
                 <style>
-                    table { border-collapse: collapse; font-family: Calibri, sans-serif; }
-                    th { background-color: #4472c4; color: white; border: 1pt solid black; font-weight: bold; text-align: center; padding: 5px; }
-                    td { border: 1pt solid black; vertical-align: top; padding: 5px; }
-                    .cat-header { background-color: #d9d9d9; color: black; font-weight: bold; text-align: center; }
-                    .pass { color: #006100; font-weight: bold; text-align: center; }
-                    .fail { color: #9c0006; font-weight: bold; text-align: center; }
-                    pre { margin: 0; font-family: Consolas, monospace; white-space: pre-wrap; font-size: 9pt; }
+                    table { border-collapse: collapse; font-family: 'Segoe UI', Calibri, sans-serif; width: 100%; border: 1pt solid black; }
+                    th { background-color: #0f172a; color: white; border: 1pt solid black; font-weight: bold; text-align: center; padding: 10px 5px; font-size: 11pt; }
+                    td { border: 1pt solid black; vertical-align: top; padding: 8px 6px; font-size: 10pt; mso-number-format:"\@"; color: #000000; }
+                    .cat-header { background-color: #334155 !important; color: white !important; font-weight: bold; text-align: left; padding: 10px 15px; border: 1pt solid black; font-size: 12pt; }
+                    .pass { color: #15803d; font-weight: bold; }
+                    .fail { color: #b91c1c; font-weight: bold; }
+                    .pending { color: #475569; }
+                    .text-center { text-align: center; }
+                    /* Zebra striping for Excel rows */
+                    .even-row { background-color: #f8fafc; }
                 </style>
             </head>
             <body>
@@ -2000,24 +2062,27 @@ class TelephonyManager {
                 const status = result ? (result.success ? 'PASS' : 'FAIL') : 'PENDING';
                 const statusClass = status.toLowerCase();
                 const output = result ? result.output : '-';
+                const rowClass = overallIndex % 2 === 0 ? 'even-row' : '';
 
-                tableHtml += `<tr>`;
+                tableHtml += `<tr class="${rowClass}">`;
                 activeCols.forEach(k => {
-                    if (k === 'sno') tableHtml += `<td style="text-align: center">${overallIndex++}</td>`;
+                    if (k === 'sno') tableHtml += `<td class="text-center">${overallIndex}</td>`;
                     if (k === 'feature') tableHtml += `<td>${this.categoriesData[catId]?.label || catId.toUpperCase()}</td>`;
                     if (k === 'actions') tableHtml += `<td>${cmd.name}</td>`;
-                    if (k === 'commands') tableHtml += `<td><code>${cmd.command}</code></td>`;
-                    if (k === 'expected') tableHtml += `<td><code>${cmd.expected || this.getExpectedPattern(cmd.id) || '-'}</code></td>`;
-                    if (k === 'output') tableHtml += `<td><pre>${output}</pre></td>`;
+                    if (k === 'commands') tableHtml += `<td>${cmd.command}</td>`;
+                    if (k === 'expected') tableHtml += `<td>${cmd.expected || this.getExpectedPattern(cmd.id) || '-'}</td>`;
+                    if (k === 'output') tableHtml += `<td>${output.replace(/\n/g, ' ')}</td>`;
                     if (k === 'result') tableHtml += `<td class="${statusClass}">${status}</td>`;
-                });
+                }); // End of activeCols.forEach
+                overallIndex++;
                 tableHtml += `</tr>`;
-            });
-        });
+            }); // End of catCommands.forEach
+        }); // End of categoriesToExport.forEach
 
         tableHtml += `</tbody></table></body></html>`;
 
         const filename = `Sanity_Report_${this.currentModel}_${new Date().toISOString().split('T')[0]}.xls`;
+        // Use a generic Blob to trigger Excel's "Open" flow more reliably without UTF-8 BOM which sometimes triggers the "Format" warning in older Excel engines
         const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);

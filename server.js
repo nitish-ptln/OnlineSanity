@@ -326,7 +326,7 @@ app.get('/api/device-status', async (req, res) => {
                 execAsync(`${adbBase} shell sldd telephony getimei`),
                 execAsync(`${adbBase} shell sldd telephony getservicestate`),
                 execAsync(`${adbBase} shell sldd region getnation`),
-                execAsync(`${adbBase} shell sldd telephony getradiostate`),
+                execAsync(`${adbBase} shell "sldd telephony getradiostate; sldd telephony isRadioOn"`),
                 execAsync(`${adbBase} shell cat etc/version`)
             ]);
 
@@ -371,7 +371,9 @@ app.get('/api/device-status', async (req, res) => {
 
             // Parse Radio State
             if (rad && rad.stdout) {
-                extraInfo.radioOn = rad.stdout.includes('RADIO_ON');
+                const out = rad.stdout;
+                // Support both legacy "RADIO_ON" and new "Result : true" formats
+                extraInfo.radioOn = out.includes('RADIO_ON') || /Result\s*:\s*true/i.test(out);
             }
 
             // Parse Software Version
@@ -714,10 +716,11 @@ app.post('/api/tools/launch-dlt', async (req, res) => {
         console.log(`[DLT] Forwarding ${target || 'default'} to localhost:${internalPort}`);
 
         // Remove existing forward for this specific internal port to avoid conflicts
-        await execAsync(`${binary} forward --remove tcp:${internalPort}`).catch(() => { });
+        await execAsync(`${binary} ${target} forward --remove tcp:${internalPort}`).catch(() => { });
 
         // Forward public internal port to device's DLT port (3490)
-        const adbRes = await execAsync(`${binary} forward tcp:${internalPort} tcp:3490`, 5000);
+        // CRITICAL: Must use target serial if multiple devices are connected
+        const adbRes = await execAsync(`${binary} ${target} forward tcp:${internalPort} tcp:3490`, 5000);
 
         if (!adbRes.success) {
             console.error(`[DLT] ADB Forward Error:`, adbRes.stderr);

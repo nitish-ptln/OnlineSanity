@@ -58,6 +58,10 @@ class TelephonyManager {
             if (btn) btn.textContent = '🌙';
         }
 
+        // Global Event Tracking
+        this.seenNotifIds = new Set(JSON.parse(localStorage.getItem('seenNotifIds') || '[]'));
+        this.isInitialLoad = true;
+
         this.init();
     }
 
@@ -119,13 +123,23 @@ class TelephonyManager {
         const list = document.querySelector('.model-list');
         list.innerHTML = '';
 
+        const isBmwDevice = this.cachedSwVersion && this.cachedSwVersion.includes('WAVE');
+
         Object.entries(this.commandsData).forEach(([id, model]) => {
             const li = document.createElement('li');
-            li.className = `model-item ${id === this.currentModel ? 'active' : ''}`;
+            const isActive = id === this.currentModel;
+            const isBmwModel = id.includes('bmw');
+
+            // If BMW device is connected, non-BMW models are dimmed and disabled
+            const isRestricted = isBmwDevice && !isBmwModel;
+
+            li.className = `model-item ${isActive ? 'active' : ''} ${isRestricted ? 'restricted' : ''}`;
+            if (isRestricted) li.style.opacity = '0.4';
+
             li.dataset.model = id;
             const icon = this.modelIcons[id] || this.modelIcons.default;
             li.innerHTML = `
-                <span class="model-icon">${icon}</span>
+                <span class="model-icon" style="${isActive ? 'filter: drop-shadow(0 0 8px var(--primary-color))' : ''}">${icon}</span>
                 <div class="model-info">
                     <span class="model-name">${model.name}</span>
                     <span class="model-variant">${model.variant || ''}</span>
@@ -140,6 +154,15 @@ class TelephonyManager {
 
     handleModelSwitch(newId) {
         if (newId === this.currentModel) return;
+
+        // Restriction for BMW devices: (BMW can switch project from single to dual sim but can't switch to other models)
+        const isBmwDevice = this.cachedSwVersion && this.cachedSwVersion.includes('WAVE');
+        if (isBmwDevice) {
+            const isSwitchingToAllowedBmw = newId.includes('bmw');
+            if (!isSwitchingToAllowedBmw) {
+                return this.showToast('BMW Device Detected: You can only switch between BMW variants.', false, 3000);
+            }
+        }
 
         const oldName = this.commandsData[this.currentModel].name;
         const newName = this.commandsData[newId].name;
@@ -703,6 +726,9 @@ class TelephonyManager {
         this.isPaused = false;
         this.stopExecution = false;
 
+        // LOCK the device on server for other users
+        await this.toggleRegressionLock(true, 1, commands.length);
+
         for (const cmd of commands) {
             // Check for Stop
             if (this.stopExecution) {
@@ -744,6 +770,9 @@ class TelephonyManager {
         this.isRunningAll = false;
         btn.innerHTML = originalText;
         btn.disabled = false;
+
+        // UNLOCK the device on server
+        await this.toggleRegressionLock(false);
 
         // Update Stop Button state to 'Reprint' or hide
         const stopBtn = document.getElementById('reportStopBtn');
@@ -851,7 +880,7 @@ class TelephonyManager {
 
             // Sync binary
             if (data.adbCommand) {
-                this.adbCommand = data.adbCommand.startsWith('adb1') ? 'adb1' : 'adb';
+                this.adbCommand = data.adbCommand;
                 this.updateAdbToggleUI();
             }
 
@@ -1076,11 +1105,18 @@ class TelephonyManager {
 
             this.deviceConnected = data.connected;
             this.simState = data.extraInfo ? data.extraInfo.simState : -1;
-            // Save Service State for Dial logic checks
             this.serviceState = data.extraInfo ? data.extraInfo.serviceState : '-';
             this.isServicePass = data.extraInfo ? data.extraInfo.isServicePass : false;
 
             this.updateUIWithStatus(data);
+
+            // Handle Global Lock (Visuals)
+            this.handleDeviceLockVisuals(data.lock);
+
+            // NEW: Handle global notifications (e.g., ADB binary changes by other users)
+            if (data.notifications) {
+                this.handleGlobalNotifications(data.notifications);
+            }
         } catch (e) {
             // Only show popups for connection errors if we previously thought we were connected
             if (this.deviceConnected && this.deviceSerial) {
@@ -1102,6 +1138,14 @@ class TelephonyManager {
         const connStatus = document.getElementById('connectionStatus');
         const dot = connStatus.querySelector('.status-dot');
         const text = connStatus.querySelector('.status-text');
+
+        // Update display of currently used ADB binary in the header if desired
+        // (Optional: can add a display element for this)
+        if (data && data.adbUsed) {
+            const adbDisp = document.getElementById('activeAdbDisplay');
+            if (adbDisp) adbDisp.textContent = `Using: ${data.adbUsed}`;
+        }
+
 
         if (data && data.connected) {
             statusCard.classList.add('connected');
@@ -1127,7 +1171,36 @@ class TelephonyManager {
                 const nationIndex = nationMatch ? nationMatch[1] : null;
 
                 // Update Software Version
-                document.getElementById('swVersionDisplay').textContent = data.extraInfo.swVersion || '-';
+                const swVersion = data.extraInfo.swVersion || '-';
+                document.getElementById('swVersionDisplay').textContent = swVersion;
+
+                // BMW Auto-Switch & Restriction logic
+                const wasBmw = !!(this.cachedSwVersion && this.cachedSwVersion.includes('WAVE'));
+                const isBmwNow = swVersion.includes('WAVE');
+                const isUnknown = swVersion === 'Unknown' || swVersion === '-';
+
+                // Sticky logic: if it was BMW and now we get "Unknown", stick to BMW
+                let isBmw = isBmwNow || (wasBmw && isUnknown);
+
+                if (isBmw) {
+                    if (isBmwNow) this.cachedSwVersion = swVersion;
+                    // Auto-switch to BMW if not already in a BMW project
+                    if (!this.currentModel.includes('bmw')) {
+                        console.log('[AUTO-SWITCH] BMW Device detected (WAVE). Switching project...');
+                        const targetBmw = this.commandsData['bmw_single'] ? 'bmw_single' : 'bmw';
+                        if (this.commandsData[targetBmw]) {
+                            this.pendingModelSwitch = targetBmw;
+                            this.confirmSwitch();
+                        }
+                    }
+                } else if (!isUnknown) {
+                    this.cachedSwVersion = null; // Only reset if we definitely know it's NOT a BMW device
+                }
+
+                // If BMW status changed, re-render models to show/hide restrictions
+                if (!!wasBmw !== !!isBmw) {
+                    this.renderModels();
+                }
 
                 // Update Flag/Globe Icon
                 const regionIcon = document.getElementById('regionIcon');
@@ -1980,8 +2053,8 @@ class TelephonyManager {
             feature: document.querySelector('[data-col="feature"]').checked,
             actions: document.querySelector('[data-col="actions"]').checked,
             commands: document.querySelector('[data-col="commands"]').checked,
-            output: document.querySelector('[data-col="output"]').checked,
             expected: document.querySelector('[data-col="expected"]').checked,
+            output: document.querySelector('[data-col="output"]').checked,
             result: document.querySelector('[data-col="result"]').checked
         };
 
@@ -1990,8 +2063,8 @@ class TelephonyManager {
             feature: 'Feature',
             actions: 'Actions',
             commands: 'Commands',
-            output: 'Actual Output',
             expected: 'Expected Output',
+            output: 'Actual Output',
             result: 'Result'
         };
 
@@ -2070,7 +2143,10 @@ class TelephonyManager {
                     if (k === 'feature') tableHtml += `<td>${this.categoriesData[catId]?.label || catId.toUpperCase()}</td>`;
                     if (k === 'actions') tableHtml += `<td>${cmd.name}</td>`;
                     if (k === 'commands') tableHtml += `<td>${cmd.command}</td>`;
-                    if (k === 'expected') tableHtml += `<td>${cmd.expected || this.getExpectedPattern(cmd.id) || '-'}</td>`;
+                    if (k === 'expected') {
+                        const exp = this.getExpectedOutputText(cmd);
+                        tableHtml += `<td>${exp.replace(/\n/g, '<br>')}</td>`;
+                    }
                     if (k === 'output') tableHtml += `<td>${output.replace(/\n/g, ' ')}</td>`;
                     if (k === 'result') tableHtml += `<td class="${statusClass}">${status}</td>`;
                 }); // End of activeCols.forEach
@@ -2167,8 +2243,8 @@ class TelephonyManager {
             feature: document.querySelector('[data-col="feature"]').checked,
             actions: document.querySelector('[data-col="actions"]').checked,
             commands: document.querySelector('[data-col="commands"]').checked,
-            output: document.querySelector('[data-col="output"]').checked,
             expected: document.querySelector('[data-col="expected"]').checked,
+            output: document.querySelector('[data-col="output"]').checked,
             result: document.querySelector('[data-col="result"]').checked
         };
 
@@ -2177,8 +2253,8 @@ class TelephonyManager {
             feature: 'Feature',
             actions: 'Actions',
             commands: 'Commands',
-            output: 'Actual Output',
             expected: 'Expected Output',
+            output: 'Actual Output',
             result: 'Result'
         };
 
@@ -2239,7 +2315,10 @@ class TelephonyManager {
                     if (k === 'feature') rowHtml += `<td>${this.categoriesData[catId]?.label || catId.toUpperCase()}</td>`;
                     if (k === 'actions') rowHtml += `<td>${cmd.name}</td>`;
                     if (k === 'commands') rowHtml += `<td><code>${cmd.command}</code></td>`;
-                    if (k === 'expected') rowHtml += `<td><code>${expected}</code></td>`;
+                    if (k === 'expected') {
+                        const exp = this.getExpectedOutputText(cmd);
+                        rowHtml += `<td><pre class="report-output">${exp}</pre></td>`;
+                    }
                     if (k === 'output') rowHtml += `<td data-field="output"><pre class="report-output">${output}</pre></td>`;
                     if (k === 'result') rowHtml += `<td data-field="status" class="report-status-cell ${statusClass}">${statusText}</td>`;
                 });
@@ -2314,6 +2393,94 @@ class TelephonyManager {
             'getApnAddress': 'Apn Address\\s*:\\s*.+'
         };
         return patterns[id];
+    }
+
+    getExpectedOutputText(cmd) {
+        const id = cmd.id;
+        const name = cmd.name;
+
+        // Define fixed templates based on the provided Excel sheet
+        const templates = {
+            'sim_state': 'Get SIM state\n---------------------------------\n-> SIM state : 5 (Ready)',
+            'iccid': 'Get ICCID\n---------------------------------\n-> ICCID : 8991000905760766214',
+            'eid': 'Get EID (eUICC ID)\n---------------------------------\n-> EID : 1000000000000000000000000000001',
+            'mcc': 'Get MCC (0 ~ 999) -1: No network)\n---------------------------------\n-> MCC : 404',
+            'mnc': 'Get MNC (0 ~ 999) -1: No network)\n---------------------------------\n-> MNC : 45',
+            'imei': 'Get IMEI\n---------------------------------\n-> IMEI : 354179760101679',
+            'msisdn': 'Get MSISDN\n---------------------------------\n-> MSISDN :',
+            'imsi': 'Get IMSI\n---------------------------------\n-> IMSI : 404450631495540',
+            'sim_oper': 'Get SIM operator\n---------------------------------\n-> SIM operator : 40445',
+            'sim_country': 'Get SIM country ISO\n---------------------------------\n-> SIM country ISO : in',
+            'sim_pin': 'Check SIM PIN Enabled\n---------------------------------\n-> SIM PIN Enabled : false',
+            'sim_error': 'Get SIM Error\n---------------------------------\n-> SIM error : 0',
+            'sim_prof_count': 'Get SIM Profile Count\n---------------------------------\n-> SIM profile count : 1',
+            'net_reg_state': 'Get Network Reg State\n---------------------------------\n-> Network Registration : 1 (Home)',
+            'service_state': 'Get Service State\n---------------------------------\n-> Service State : 0 (In Service)',
+            'pref_net_type': 'Get Preferred Network Type\n---------------------------------\n-> Preferred Network Type : 11 (LTE Only)',
+            'lac': 'Get LAC\n---------------------------------\n-> LAC : <number>',
+            'cid': 'Get CID\n---------------------------------\n-> CID : <number>',
+            'signal_strength': 'Get Signal Strength\n---------------------------------\n-> Signal Strength : -XX dBm',
+            'dial': 'Dialing Number\n---------------------------------\n-> CALL_STATE_OFFHOOK / ACTIVE',
+            'end_call': 'End Active Call\n---------------------------------\n-> CALL_STATE_IDLE',
+            'answer_call': 'Answer Incoming Call\n---------------------------------\n-> Result : Success',
+            'reject_call': 'Reject Incoming Call\n---------------------------------\n-> Result : Success',
+            'reset_apn': 'Reset APN Configuration\n---------------------------------\n-> Result : Success',
+            'disable_apn_type': 'Disable APN Type\n---------------------------------\n-> Result : Success',
+            'recv_sms': 'Receive SMS Check\n---------------------------------\n-> send a sample message from mobile to device',
+            'send_sms_default': 'Sending SMS\n---------------------------------\n-> Result : Success'
+        };
+
+        if (templates[id]) return templates[id];
+
+        // BMW specific dual sim handling (ids ending with _0 or _1)
+        if (id.endsWith('_0') || id.endsWith('_1')) {
+            const baseId = id.replace(/_[01]$/, '');
+            if (templates[baseId]) {
+                const baseText = templates[baseId];
+                const slot = id.endsWith('_1') ? '1' : '0';
+                // Customize based on user provided logs
+                if (baseId === 'sim_oper') return `${name}\n---------------------------------\n-> SIM MCC/MNC : <number>`;
+                if (baseId === 'has_sim') return `${name}\n---------------------------------\n-> Result : true`;
+                if (baseId === 'iccid') return `${name}\n---------------------------------\n-> ICCID : <number>`;
+                if (baseId === 'imei') return `${name}\n---------------------------------\n-> IMEI : <number>`;
+                return baseText; // Fallback to base template
+            }
+        }
+
+        // Specific data templates for BMW/JLR
+        if (id === 'data_state_default' || id === 'data_state_dun_1' || id === 'get_data_state') {
+            return `Get Data Connection State\n---------------------------------\n-> result : Connected`;
+        }
+        if (id.includes('interface_info')) {
+            return `Get Interface Details by APN Type\n---------------------------------\n-> Result APN : IpAddresses=[...] InterfaceName=[...]`;
+        }
+        if (id === 'get_usage_list') {
+            return `Get Data Usage Print\n---------------------------------\n-> [rmnet_dataX] DataUsage: { ... }`;
+        }
+        if (id === 'get_packet_loss') {
+            return `Get Packet Loss\n---------------------------------\n-> [rmnet_dataX] getPacketLoss: { ... }`;
+        }
+        if (id.includes('data_ip')) {
+            return `Get IP Address\n---------------------------------\n-> result : <ip_address>`;
+        }
+        if (id === 'has_sim') {
+            return `Has SIM Card Check\n---------------------------------\n-> Result : true`;
+        }
+
+        // Clean up fallback regex for display (Remove regex tokens like \s*, \d+, etc)
+        let exp = cmd.expected || this.getExpectedPattern(id) || 'Success';
+        if (exp !== 'Success') {
+            exp = exp.replace(/\\s\*/g, ' ')
+                .replace(/\\s\+/g, ' ')
+                .replace(/\\d\+/g, 'XX')
+                .replace(/\\w\+/g, 'XX')
+                .replace(/\.\*/g, ' ')
+                .replace(/\\/g, '')
+                .replace(/\(\w+\|\w+\)/g, (m) => m.split('|')[0].replace(/[()]/g, ''))
+                .replace(/[()]/g, '');
+        }
+
+        return `${name}\n---------------------------------\n-> Expected: ${exp}`;
     }
 
     updateModuleVisibility() {
@@ -2525,6 +2692,9 @@ class TelephonyManager {
         if (this.isRegressionRunning) return;
         if (!this.deviceConnected) return this.showToast('Connect device first', false);
 
+        // LOCK the device on server for other users
+        await this.toggleRegressionLock(true, iterations, sequence.length);
+
         // Reset UI
         this.isRegressionRunning = true;
         this.stopRegression = false;
@@ -2692,6 +2862,10 @@ class TelephonyManager {
         startBtn.disabled = false;
         document.getElementById('btnPauseRegression').style.display = 'none';
         stopBtn.style.display = 'none';
+
+        // UNLOCK the device on server for other users
+        await this.toggleRegressionLock(false);
+
         log.innerHTML += `<div style="color: var(--success); font-weight: bold; margin-top: 15px; border-top: 1px solid var(--success); padding-top: 10px;">
             ✅ REGRESSION COMPLETED: ${passCount} Pass, ${failCount} Fail
         </div>`;
@@ -2931,7 +3105,168 @@ class TelephonyManager {
         // Auto-refresh bridge with new port
         this.launchDLT();
     }
+
+    handleGlobalNotifications(notifications) {
+        let hasNew = false;
+        notifications.forEach(notif => {
+            if (!this.seenNotifIds.has(notif.id)) {
+                this.seenNotifIds.add(notif.id);
+                hasNew = true;
+
+                // Sync local state if it's an ADB change (even on initial load to stay in sync)
+                if (notif.type === 'ADB_CHANGE' && notif.data && notif.data.adb) {
+                    this.adbCommand = notif.data.adb;
+                    this.updateAdbToggleUI();
+                    this.loadCommands();
+                }
+
+                // ONLY show the popup if this is NOT the first time we are loading the page
+                if (!this.isInitialLoad) {
+                    this.showSystemPopup(notif.message, notif.time);
+                }
+            }
+        });
+
+        if (hasNew) {
+            // Keep localStorage clean, store last 50 IDs
+            const keptIds = Array.from(this.seenNotifIds).slice(-50);
+            localStorage.setItem('seenNotifIds', JSON.stringify(keptIds));
+        }
+
+        this.isInitialLoad = false;
+    }
+
+    showSystemPopup(message, time) {
+        const modal = document.getElementById('systemNotificationModal');
+        const msgEl = document.getElementById('sysNotifMessage');
+        const timeEl = document.getElementById('sysNotifTime');
+        const iconEl = document.getElementById('sysNotifIcon');
+
+        if (modal && msgEl) {
+            msgEl.textContent = message;
+            if (timeEl) timeEl.textContent = `Announced at: ${time}`;
+
+            // Visual flair for different notice types
+            if (message.includes('ADB')) {
+                if (iconEl) iconEl.textContent = '⚙️';
+            } else if (message.includes('IMEI')) {
+                if (iconEl) iconEl.textContent = '🆔';
+            } else {
+                if (iconEl) iconEl.textContent = '📢';
+            }
+
+            modal.classList.add('active');
+
+            // Auto-hide after 10 seconds if user doesn't close it
+            setTimeout(() => {
+                modal.classList.remove('active');
+            }, 10000);
+        }
+    }
+
+    async toggleRegressionLock(active, iterations = 0, steps = 0) {
+        try {
+            await fetch('/api/regression/lock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    serial: this.deviceSerial,
+                    active,
+                    iterations,
+                    steps
+                })
+            });
+        } catch (e) { console.error('Lock toggle failed', e); }
+    }
+
+    handleDeviceLockVisuals(lock) {
+        const restrictedZones = [
+            'btnReboot', 'btnSetImei', 'btnSetRegion', 'btnSetNetType',
+            'targetImei', 'regionNumber', 'prefNetTypeSelect'
+        ];
+
+        if (lock) {
+            this.isDeviceRemoteLocked = true;
+            this.activeLockDetails = lock;
+
+            // Apply visual lock
+            restrictedZones.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.add('locked-feature');
+                    if (el.tagName === 'BUTTON' || el.tagName === 'SELECT' || el.tagName === 'INPUT') {
+                        // We don't necessarily disable them so we can show the "Locked" popup on click
+                        // but we'll intercept clicks in those zones
+                    }
+                }
+            });
+
+            // Add listener to block specific actions
+            if (!this.lockInterceptBound) {
+                this.bindLockInterceptors();
+                this.lockInterceptBound = true;
+            }
+        } else {
+            this.isDeviceRemoteLocked = false;
+            this.activeLockDetails = null;
+            restrictedZones.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('locked-feature');
+            });
+        }
+    }
+
+    bindLockInterceptors() {
+        const interceptIds = ['btnReboot', 'btnSetImei', 'btnSetRegion', 'btnSetNetType'];
+        interceptIds.forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                btn.addEventListener('click', (e) => {
+                    if (this.isDeviceRemoteLocked) {
+                        e.stopImmediatePropagation();
+                        this.showDeviceLockedPopup();
+                    }
+                }, true); // Capture phase
+            }
+        });
+    }
+
+    showDeviceLockedPopup() {
+        const modal = document.getElementById('deviceLockedModal');
+        const countdown = document.getElementById('lockCountdown');
+        const lock = this.activeLockDetails;
+
+        if (!modal || !lock) return;
+
+        // Simple estimate: approx 2s per step * iterations
+        const totalDuration = lock.iterations * lock.steps * 2000;
+        const elapsed = Date.now() - lock.start;
+        let remaining = Math.max(0, totalDuration - elapsed);
+
+        const updateClock = () => {
+            if (remaining <= 0) {
+                countdown.textContent = "Test finishing...";
+                return;
+            }
+            const mins = Math.floor(remaining / 60000);
+            const secs = Math.floor((remaining % 60000) / 1000);
+            countdown.textContent = `${mins}m ${secs}s`;
+            remaining -= 1000;
+        };
+
+        updateClock();
+        const timer = setInterval(() => {
+            if (!modal.classList.contains('active')) {
+                clearInterval(timer);
+                return;
+            }
+            updateClock();
+        }, 1000);
+
+        modal.classList.add('active');
+    }
 }
+
 
 const app = new TelephonyManager();
 window.app = app;

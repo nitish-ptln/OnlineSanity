@@ -53,8 +53,12 @@
                 </div>
 
                 <div class="connection-status" id="connectionStatus">
-                    <span class="status-dot"></span>
-                    <span class="status-text">Ready</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Ready</span>
+                    </div>
+                    <div id="activeAdbDisplay" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 5px;">
+                    </div>
                 </div>
 
                 <div class="tools-section"
@@ -639,11 +643,11 @@
                             </label>
                             <label
                                 style="display: flex; align-items: center; gap: 5px; font-size: 0.8rem; cursor: pointer;">
-                                <input type="checkbox" checked data-col="output"> Actual Output
+                                <input type="checkbox" checked data-col="expected"> Expected Output
                             </label>
                             <label
-                                style="display: flex; align-items: center; gap: 5px; font-size: 0.8rem; cursor: pointer; display: none;">
-                                <input type="checkbox" data-col="expected"> Expected Output
+                                style="display: flex; align-items: center; gap: 5px; font-size: 0.8rem; cursor: pointer;">
+                                <input type="checkbox" checked data-col="output"> Actual Output
                             </label>
                             <label
                                 style="display: flex; align-items: center; gap: 5px; font-size: 0.8rem; cursor: pointer;">
@@ -839,6 +843,62 @@
                 <div style="margin-top: 25px; display: flex; gap: 10px;">
                     <button class="btn-secondary w-100" id="btnSelectAllModules">Select All</button>
                     <button class="btn-primary w-100" id="btnStartCustomRun">▶️ Start Run</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Device Lock Modal -->
+    <div id="deviceLockedModal" class="modal">
+        <div class="modal-content" style="max-width: 450px; border-color: var(--error);">
+            <div class="modal-header">
+                <h3 style="color: var(--error);">🔒 Device Locked</h3>
+                <button class="modal-close"
+                    onclick="document.getElementById('deviceLockedModal').classList.remove('active')">&times;</button>
+            </div>
+            <div class="modal-body text-center">
+                <div style="font-size: 4rem; margin-bottom: 20px;">🔒</div>
+                <p style="font-size: 1.2rem; font-weight: 600; color: var(--text-primary);">Regression Test in Progress
+                </p>
+                <p style="color: var(--text-secondary); margin-top: 10px;" id="lockMessage">
+                    This device is currently busy. You cannot perform write operations or reboots until the test is
+                    finished.
+                </p>
+                <div id="lockTimerArea"
+                    style="margin-top: 20px; padding: 15px; background: rgba(220, 38, 38, 0.1); border-radius: 8px; border: 1px solid rgba(220, 38, 38, 0.2);">
+                    <div
+                        style="font-size: 0.85rem; color: var(--error); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;">
+                        Estimated Wait Time</div>
+                    <div id="lockCountdown" style="font-size: 1.8rem; font-weight: 700; color: var(--error);">
+                        Calculating...</div>
+                </div>
+                <div class="modal-actions" style="justify-content: center; margin-top: 25px;">
+                    <button class="btn-primary" style="padding: 10px 40px;"
+                        onclick="document.getElementById('deviceLockedModal').classList.remove('active')">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Notification Modal -->
+    <div id="systemNotificationModal" class="modal">
+        <div class="modal-content"
+            style="max-width: 400px; border: 2px solid var(--accent-primary); box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);">
+            <div class="modal-header">
+                <h3>📢 System Update</h3>
+                <button class="modal-close"
+                    onclick="document.getElementById('systemNotificationModal').classList.remove('active')">&times;</button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="sysNotifIcon" style="font-size: 3rem; margin-bottom: 15px; animation: pulse 2s infinite;">🔄
+                </div>
+                <p id="sysNotifMessage"
+                    style="font-size: 1.1rem; color: var(--text-primary); line-height: 1.5; font-weight: 500;"></p>
+                <div style="margin-top: 15px; color: var(--text-muted); font-size: 0.85rem;" id="sysNotifTime"></div>
+                <div class="modal-actions" style="justify-content: center; margin-top: 25px;">
+                    <button class="btn-primary" style="padding: 10px 30px;"
+                        onclick="document.getElementById('systemNotificationModal').classList.remove('active')">Got
+                        it!</button>
                 </div>
             </div>
         </div>

@@ -1,0 +1,30 @@
+{
+    "region": {
+        "label": "Region MGR",
+        "color": "#3b82f6"
+    },
+    "sim": {
+        "label": "SIM",
+        "color": "#6366f1"
+    },
+    "network": {
+        "label": "Network",
+        "color": "#8b5cf6"
+    },
+    "call": {
+        "label": "Call",
+        "color": "#a855f7"
+    },
+    "sms": {
+        "label": "SMS",
+        "color": "#10b981"
+    },
+    "ecall": {
+        "label": "eCall",
+        "color": "#ec4899"
+    },
+    "data": {
+        "label": "Data",
+        "color": "#f59e0b"
+    }
+}

@@ -8,9 +8,45 @@ const os = require('os');
 
 const app = express();
 
-const DATA_DIR = path.join(__dirname, 'data');
+// detect if we are running in a packaged environment (pkg)
+const isPackaged = process.pkg !== undefined;
+
+// For assets that should be bundled (UI, static files), we use __dirname
+// For assets that might need to be edited externally (data), we use path.dirname(process.execPath)
+const baseDirPath = isPackaged ? path.dirname(process.execPath) : __dirname;
+
+// Set up paths - prefer internal for UI, but allow external for data (persistence)
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const INTERNAL_DATA_DIR = path.join(__dirname, 'data');
+const EXTERNAL_DATA_DIR = path.join(baseDirPath, 'data');
+
+// Ensure data persistence: If packaged and external data is missing, initialize it
+if (isPackaged && !fs.existsSync(EXTERNAL_DATA_DIR)) {
+    try {
+        console.log('[SYSTEM] Initializing external data directory...');
+        fs.mkdirSync(EXTERNAL_DATA_DIR, { recursive: true });
+        // Copy initial data from bundle to external location for editability
+        if (fs.existsSync(path.join(INTERNAL_DATA_DIR, 'commands.json'))) {
+            fs.copyFileSync(path.join(INTERNAL_DATA_DIR, 'commands.json'), path.join(EXTERNAL_DATA_DIR, 'commands.json'));
+        }
+        if (fs.existsSync(path.join(INTERNAL_DATA_DIR, 'categories.json'))) {
+            fs.copyFileSync(path.join(INTERNAL_DATA_DIR, 'categories.json'), path.join(EXTERNAL_DATA_DIR, 'categories.json'));
+        }
+    } catch (e) {
+        console.error('[SYSTEM] Failed to initialize external data:', e.message);
+    }
+}
+
+// Final data directory selection
+const DATA_DIR = fs.existsSync(EXTERNAL_DATA_DIR) ? EXTERNAL_DATA_DIR : INTERNAL_DATA_DIR;
 const COMMANDS_FILE = path.join(DATA_DIR, 'commands.json');
 const CATEGORIES_FILE = path.join(DATA_DIR, 'categories.json');
+
+// Ensure directory exists (fallback/safety)
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
 
 // Helper: Get all valid local IPs for this machine (including IPv4 and IPv6)
 const getLocalIps = () => {
@@ -41,14 +77,62 @@ const getPrimaryIp = () => {
 let config = {
     targetPort: 22,
     adbPort: 5555,
-    adbCommand: 'adb1'
+    adbCommand: 'adb1' // CHANGED: Default is now adb1 to prevent security blocks on startup
 };
+
+// Auto-discover ADB Binary
+const discoverAdb = async () => {
+    // Prioritize binaries that are known to work in the user's environment
+    // Specifically looking for adb1 or local files before trying the potentially blocked 'adb'
+    const binaries = [
+        'adb1',
+        path.join(baseDirPath, 'bin', 'adb.exe'),
+        path.join(baseDirPath, 'adb.exe'),
+        path.join(baseDirPath, 'adb1.exe')
+    ];
+
+    for (const b of binaries) {
+        try {
+            // Check if binary exists/works without triggering blocks if possible
+            const res = await execAsync(`${b} version`, 2000);
+            if (res.success) {
+                console.log(`[SYSTEM] 🔍 Auto-discovered working ADB: ${b}`);
+                config.adbCommand = b;
+                return b;
+            }
+        } catch (e) {
+            // Silently skip failed probes
+        }
+    }
+    console.warn(`[SYSTEM] ⚠️ No working ADB found. Using default: ${config.adbCommand}`);
+    return config.adbCommand;
+};
+
+// Initialize discovery
+discoverAdb();
+
 
 // Store user-specific overrides: Map<ID, config>
 const userConfigs = new Map();
 
-// TCP Proxy Storage for DLT remote access
-const dltProxies = new Map(); // Port -> net.Server
+// Global System Notifications
+let globalNotifications = []; // Array of { id, type, user, message, time }
+const addGlobalNotification = (type, user, message, data = {}) => {
+    const notif = {
+        id: Date.now() + Math.random(),
+        type,
+        user,
+        message,
+        data,
+        time: new Date().toLocaleTimeString()
+    };
+    globalNotifications.push(notif);
+    if (globalNotifications.length > 10) globalNotifications.shift(); // Keep last 10
+};
+
+
+// Map: serial -> { start, duration, user, iterations, steps }
+const regressionLocks = new Map();
 
 const setupDltProxy = (publicPort, internalPort) => {
     if (dltProxies.has(publicPort)) return;
@@ -89,7 +173,9 @@ const setupDltProxy = (publicPort, internalPort) => {
 
 // Global device cache for low-latency command execution
 let deviceCache = { devices: [], timestamp: 0 };
-const CACHE_TTL = 2000; // 2 seconds cache
+let detailCache = new Map(); // serial -> { data, timestamp }
+const CACHE_TTL = 3000; // 3 seconds cache (slightly more aggressive for status)
+const DETAIL_TTL = 5000; // 5 seconds for deep details (IMEI, etc)
 
 // Helper to get cached devices or refresh
 const getCachedDevices = async (binary) => {
@@ -132,7 +218,7 @@ const adminTokens = new Set();
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(PUBLIC_DIR));
 
 // Middleware: Check if request is authenticated as admin
 const adminAuth = (req, res, next) => {
@@ -166,7 +252,7 @@ const getAdbBinary = (req) => {
     const id = getClientId(req);
     const userConfig = userConfigs.get(id);
     if (userConfig && userConfig.adbCommand) return userConfig.adbCommand;
-    return config.adbCommand || 'adb1';
+    return config.adbCommand;
 };
 
 // Helper to execute command
@@ -300,15 +386,9 @@ app.get('/api/device-status', async (req, res) => {
         }
     });
 
-    // D. Cleanup rootedSet: Remove serials that are no longer online
-    if (global.rootedSerials) {
-        const onlineKeys = readyDevices.map(d => `${binary}_${d.id}`);
-        for (const key of global.rootedSerials) {
-            if (!onlineKeys.includes(key)) {
-                global.rootedSerials.delete(key);
-            }
-        }
-    }
+    // D. Cleanup rootedSet: We avoid aggressive cleanup because adb root restarts the daemon,
+    // causing a temporary disconnect that triggers a loop if we remove it from the set.
+    // Periodic cleanup could be added here with a grace period if memory usage becomes a concern.
 
     let extraInfo = {
         imei: '-', serviceState: '-', region: '-',
@@ -318,16 +398,48 @@ app.get('/api/device-status', async (req, res) => {
 
     // 4. Fetch details if we have an active target
     if (isConnected && activeTarget) {
+        // Cache Check
+        const cacheKey = `${binary}_${activeTarget}`;
+        const cached = detailCache.get(cacheKey);
+        if (cached && (Date.now() - cached.timestamp < DETAIL_TTL)) {
+            return res.json({
+                success: true,
+                connected: true,
+                deviceCount: readyDevices.length,
+                extraInfo: cached.data
+            });
+        }
+
         const adbBase = `${binary} -s ${activeTarget}`;
         try {
-            // Run commands in parallel for maximum UI speed
-            const [sim, imei, svc, reg, rad, ver] = await Promise.all([
-                execAsync(`${adbBase} shell sldd telephony getsimstate`),
-                execAsync(`${adbBase} shell sldd telephony getimei`),
-                execAsync(`${adbBase} shell sldd telephony getservicestate`),
-                execAsync(`${adbBase} shell sldd region getnation`),
-                execAsync(`${adbBase} shell "sldd telephony getradiostate; sldd telephony isRadioOn"`),
-                execAsync(`${adbBase} shell cat etc/version`)
+            // First, quick check for version to identify device type (3s timeout to avoid blocking)
+            const verResult = await execAsync(`${adbBase} shell cat etc/version`, 3000);
+            let swVersion = verResult.stdout.trim();
+
+            // Sticky logic: If we failed to get version this time, but we previously knew it was BMW, keep it.
+            if (!global.stickySwVersions) global.stickySwVersions = new Map();
+            const stickyKey = `${binary}_${activeTarget}`;
+
+            if (!swVersion && global.stickySwVersions.get(stickyKey)?.includes('WAVE')) {
+                swVersion = global.stickySwVersions.get(stickyKey);
+            } else if (swVersion) {
+                global.stickySwVersions.set(stickyKey, swVersion);
+            }
+
+            extraInfo.swVersion = swVersion || 'Unknown';
+
+            // Determine sldd path (BMW uses /usr/bin/factory/sldd)
+            const isBmw = extraInfo.swVersion.includes('WAVE');
+            const sldd = isBmw ? '/usr/bin/factory/sldd' : 'sldd';
+
+            // Run commands in parallel for maximum UI speed (5s timeout for status)
+            const statusTimeout = 5000;
+            const [sim, imei, svc, reg, rad] = await Promise.all([
+                execAsync(`${adbBase} shell ${sldd} telephony getsimstate`, statusTimeout),
+                execAsync(`${adbBase} shell ${sldd} telephony getimei`, statusTimeout),
+                execAsync(`${adbBase} shell ${sldd} telephony getservicestate`, statusTimeout),
+                execAsync(`${adbBase} shell ${isBmw ? 'echo "Unknown"' : 'sldd region getnation; sldd region getRegionInfo'}`, statusTimeout),
+                execAsync(`${adbBase} shell "${sldd} telephony getradiostate; ${sldd} telephony isRadioOn"`, statusTimeout)
             ]);
 
             const parse = (res, regex) => {
@@ -345,7 +457,12 @@ app.get('/api/device-status', async (req, res) => {
             }
 
             // Parse IMEI
-            const iMatch = parse(imei, /IMEI\s*:\s*(\d+)/i);
+            let iMatch = parse(imei, /IMEI\s*:\s*(\d+)/i);
+            // Fallback for Dual SIM BMW if standard getimei fails to return expected format on first slot
+            if (!iMatch && isBmw) {
+                const imei0 = await execAsync(`${adbBase} shell ${sldd} telephony getimei 0`);
+                iMatch = parse(imei0, /IMEI\s*:\s*(\d+)/i);
+            }
             if (iMatch) extraInfo.imei = iMatch;
 
             // Parse Service State
@@ -367,6 +484,8 @@ app.get('/api/device-status', async (req, res) => {
                 extraInfo.region = regionMatch;
             } else if (nationMatch) {
                 extraInfo.region = nationMatch;
+            } else if (isBmw) {
+                extraInfo.region = 'BMW (Factory)';
             }
 
             // Parse Radio State
@@ -375,17 +494,14 @@ app.get('/api/device-status', async (req, res) => {
                 // Support both legacy "RADIO_ON" and new "Result : true" formats
                 extraInfo.radioOn = out.includes('RADIO_ON') || /Result\s*:\s*true/i.test(out);
             }
-
-            // Parse Software Version
-            // The command is simple cat, so stdout is the value
-            if (ver && ver.stdout) {
-                extraInfo.swVersion = ver.stdout.trim();
-            } else {
-                extraInfo.swVersion = 'Unknown';
-            }
         } catch (e) {
             console.error('[STATUS] Details fetch error:', e.message);
         }
+    }
+
+    // Update cache if we have fresh data
+    if (activeTarget && isConnected) {
+        detailCache.set(`${binary}_${activeTarget}`, { data: extraInfo, timestamp: Date.now() });
     }
 
     res.json({
@@ -393,7 +509,9 @@ app.get('/api/device-status', async (req, res) => {
         deviceCount: readyDevices.length,
         extraInfo,
         adbUsed: activeTarget ? `${binary} -s ${activeTarget}` : binary,
-        debug: { serialStored: savedSerial, idsFound: devices.map(d => d.id) }
+        debug: { serialStored: savedSerial, idsFound: devices.map(d => d.id) },
+        notifications: globalNotifications,
+        lock: savedSerial ? regressionLocks.get(savedSerial.toLowerCase()) : null
     });
 });
 
@@ -415,17 +533,50 @@ app.get('/api/config', (req, res) => {
 app.post('/api/config', (req, res) => {
     const id = getClientId(req);
     const { adbCommand, serial } = req.body;
-    const current = userConfigs.get(id) || { adbCommand: config.adbCommand, serial: '' };
+    const current = userConfigs.get(id) || { serial: '' };
+
+    // If ADB command is changed, it is now GLOBAL
+    if (adbCommand && adbCommand !== config.adbCommand) {
+        config.adbCommand = adbCommand;
+        const userName = id.includes('client_') ? 'A user' : id;
+        addGlobalNotification('ADB_CHANGE', id, `${userName} changed the SYSTEM ADB binary to ${adbCommand.toUpperCase()}`, { adb: adbCommand });
+    }
+
     const next = {
-        adbCommand: adbCommand || current.adbCommand,
+        adbCommand: config.adbCommand, // Always use global config
         serial: serial !== undefined ? serial : current.serial
     };
+
     userConfigs.set(id, next);
     res.json({ success: true, config: next });
 });
 
 app.get('/api/commands', (req, res) => {
     res.json({ commands: readJson(COMMANDS_FILE), categories: readJson(CATEGORIES_FILE) });
+});
+
+// LOCK Management
+app.post('/api/regression/lock', (req, res) => {
+    const { serial, active, duration, iterations, steps } = req.body;
+    const user = getClientId(req);
+
+    if (!serial) return res.status(400).json({ success: false, error: 'Serial required' });
+
+    const key = serial.toLowerCase();
+    if (active) {
+        regressionLocks.set(key, {
+            start: Date.now(),
+            duration: duration || 0,
+            user,
+            iterations: iterations || 0,
+            steps: steps || 0
+        });
+        addGlobalNotification('SYSTEM', 'SYSTEM', `Regression Lock activated for ${serial}`);
+    } else {
+        regressionLocks.delete(key);
+        addGlobalNotification('SYSTEM', 'SYSTEM', `Regression Lock released for ${serial}`);
+    }
+    res.json({ success: true });
 });
 
 // Validate if a specific device is still connected
@@ -496,8 +647,20 @@ app.post('/api/execute', async (req, res) => {
 
     const adbBase = `${binary} -s ${targetDevice.id}`;
     let sanitized = command.trim().replace(/^(adb1?(\.exe)?\s+)/i, '');
-    const full = `${adbBase} ${sanitized}`;
 
+    // Check for REGRESSION LOCK
+    const lock = regressionLocks.get(requestedSerial);
+    if (lock && !sanitized.toLowerCase().includes('getprop') && !sanitized.toLowerCase().includes('svc')) {
+        // Block execution if it's not a read-only command (heuristic)
+        return res.json({
+            success: false,
+            error: 'DEVICE_LOCKED',
+            lock,
+            message: `Device is busy with a Regression Test (${lock.iterations} iterations).`
+        });
+    }
+
+    const full = `${adbBase} ${sanitized}`;
     console.log(`[EXEC] ${full}`);
     const result = await execAsync(full);
 
@@ -506,6 +669,16 @@ app.post('/api/execute', async (req, res) => {
     if (requestedSerial || targetDevice) {
         const serial = targetDevice.id;
         output = `[${serial}] ${output}`;
+    }
+
+    // Detect IMEI write and notify everyone if successful
+    if (result.success && sanitized.includes('factorySetimei')) {
+        const imeiMatch = sanitized.match(/factorySetimei\s+(\d+|[\w-]+)/);
+        if (imeiMatch) {
+            const newImei = imeiMatch[1];
+            const userName = id.includes('client_') ? 'A user' : id;
+            addGlobalNotification('IMEI_CHANGE', id, `${userName} set a new IMEI: ${newImei} for device ${targetDevice.id}`, { imei: newImei, serial: targetDevice.id });
+        }
     }
 
     res.json({
@@ -553,9 +726,13 @@ app.post('/api/reboot', async (req, res) => {
     const binary = getAdbBinary(req);
     const id = getClientId(req);
     const userConfig = userConfigs.get(id);
-    let target = '';
-    if (userConfig && userConfig.serial) target = `-s ${userConfig.serial}`;
-    const result = await execAsync(`${binary} ${target} reboot`);
+    const serial = userConfig?.serial;
+
+    if (serial && regressionLocks.has(serial.toLowerCase())) {
+        return res.json({ success: false, error: 'DEVICE_LOCKED', message: 'Reboot blocked: Regression test in progress.' });
+    }
+
+    const result = await execAsync(`${binary} ${serial ? `-s ${serial}` : ''} reboot`);
     res.json(result);
 });
 

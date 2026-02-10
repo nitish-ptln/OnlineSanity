@@ -265,6 +265,18 @@
                 "category": "call"
             },
             {
+                "id": "answer_call",
+                "name": "Answer Call",
+                "command": "adb1 shell sldd telephony answerCall",
+                "category": "call"
+            },
+            {
+                "id": "reject_call",
+                "name": "Reject Call",
+                "command": "adb1 shell sldd telephony rejectCall",
+                "category": "call"
+            },
+            {
                 "id": "emergency_list",
                 "name": "Get Emergency Numbers",
                 "command": "adb1 shell sldd telephony getEmergencyNumberList",
@@ -280,6 +292,12 @@
                 "id": "send_sms_default",
                 "name": "Send SMS (Default)",
                 "command": "adb1 shell sldd telephony sendSms16 7717487889 hello",
+                "category": "sms"
+            },
+            {
+                "id": "recv_sms",
+                "name": "Receive SMS",
+                "command": "adb1 shell sldd telephony recvSms",
                 "category": "sms"
             },
             {
@@ -691,6 +709,36 @@
                 "name": "Get APN Address",
                 "command": "adb1 shell sldd telephony getApnAddress default",
                 "category": "data"
+            },
+            {
+                "id": "reset_apn",
+                "name": "Reset APN (Default)",
+                "command": "adb1 shell sldd telephony resetApn default",
+                "category": "data"
+            },
+            {
+                "id": "disable_apn_type",
+                "name": "Disable APN Type",
+                "command": "adb1 shell sldd telephony disableApnType",
+                "category": "data"
+            },
+            {
+                "id": "answer_call",
+                "name": "Answer Call",
+                "command": "adb1 shell sldd telephony answerCall",
+                "category": "call"
+            },
+            {
+                "id": "reject_call",
+                "name": "Reject Call",
+                "command": "adb1 shell sldd telephony rejectCall",
+                "category": "call"
+            },
+            {
+                "id": "recv_sms",
+                "name": "Receive SMS",
+                "command": "adb1 shell sldd telephony recvSms",
+                "category": "sms"
             }
         ]
     },
@@ -1089,6 +1137,36 @@
                 "name": "Get APN Address",
                 "command": "adb1 shell sldd telephony getApnAddress default",
                 "category": "data"
+            },
+            {
+                "id": "reset_apn",
+                "name": "Reset APN (Default)",
+                "command": "adb1 shell sldd telephony resetApn default",
+                "category": "data"
+            },
+            {
+                "id": "disable_apn_type",
+                "name": "Disable APN Type",
+                "command": "adb1 shell sldd telephony disableApnType",
+                "category": "data"
+            },
+            {
+                "id": "answer_call",
+                "name": "Answer Call",
+                "command": "adb1 shell sldd telephony answerCall",
+                "category": "call"
+            },
+            {
+                "id": "reject_call",
+                "name": "Reject Call",
+                "command": "adb1 shell sldd telephony rejectCall",
+                "category": "call"
+            },
+            {
+                "id": "recv_sms",
+                "name": "Receive SMS",
+                "command": "adb1 shell sldd telephony recvSms",
+                "category": "sms"
             }
         ]
     },
@@ -1487,12 +1565,42 @@
                 "name": "Get APN Address",
                 "command": "adb1 shell sldd telephony getApnAddress default",
                 "category": "data"
+            },
+            {
+                "id": "reset_apn",
+                "name": "Reset APN (Default)",
+                "command": "adb1 shell sldd telephony resetApn default",
+                "category": "data"
+            },
+            {
+                "id": "disable_apn_type",
+                "name": "Disable APN Type",
+                "command": "adb1 shell sldd telephony disableApnType",
+                "category": "data"
+            },
+            {
+                "id": "answer_call",
+                "name": "Answer Call",
+                "command": "adb1 shell sldd telephony answerCall",
+                "category": "call"
+            },
+            {
+                "id": "reject_call",
+                "name": "Reject Call",
+                "command": "adb1 shell sldd telephony rejectCall",
+                "category": "call"
+            },
+            {
+                "id": "recv_sms",
+                "name": "Receive SMS",
+                "command": "adb1 shell sldd telephony recvSms",
+                "category": "sms"
             }
         ]
     },
-    "bmw": {
-        "name": "BMW",
-        "variant": "",
+    "bmw_single": {
+        "name": "BMW (Single SIM)",
+        "variant": "Single SIM",
         "categories": [
             "sim",
             "network",
@@ -1503,388 +1611,756 @@
         ],
         "commands": [
             {
+                "id": "has_sim",
+                "name": "Has SIM Card",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony hassimcard",
+                "category": "sim"
+            },
+            {
                 "id": "sim_state",
                 "name": "Get SIM State",
-                "command": "adb1 shell sldd telephony getsimstate",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getsimstate",
                 "category": "sim"
             },
             {
                 "id": "iccid",
                 "name": "Get ICCID",
-                "command": "adb1 shell sldd telephony geticcid",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony geticcid",
                 "category": "sim"
             },
             {
                 "id": "eid",
                 "name": "Get EID",
-                "command": "adb1 shell sldd telephony geteid",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony geteid",
                 "category": "sim"
             },
             {
                 "id": "mcc",
                 "name": "Get MCC",
-                "command": "adb1 shell sldd telephony getmcc",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getmcc",
                 "category": "sim"
             },
             {
                 "id": "mnc",
                 "name": "Get MNC",
-                "command": "adb1 shell sldd telephony getmnc",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getmnc",
                 "category": "sim"
             },
             {
                 "id": "imei",
                 "name": "Get IMEI",
-                "command": "adb1 shell sldd telephony getimei",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getimei",
                 "category": "sim"
             },
             {
                 "id": "msisdn",
                 "name": "Get MSISDN",
-                "command": "adb1 shell sldd telephony getmsisdn",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getmsisdn",
                 "category": "sim"
             },
             {
                 "id": "imsi",
                 "name": "Get IMSI",
-                "command": "adb1 shell sldd telephony getimsi",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getimsi",
                 "category": "sim"
             },
             {
                 "id": "sim_oper",
                 "name": "Get SIM Operator",
-                "command": "adb1 shell sldd telephony getsimoper",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getsimoper",
                 "category": "sim"
             },
             {
                 "id": "sim_country",
                 "name": "Get SIM Country ISO",
-                "command": "adb1 shell sldd telephony getsimcountryiso",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getsimcountryiso",
                 "category": "sim"
             },
             {
                 "id": "sim_pin",
                 "name": "Is SIM PIN Enabled",
-                "command": "adb1 shell sldd telephony isSimPinEnabled",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony isSimPinEnabled",
                 "category": "sim"
             },
             {
                 "id": "sim_error",
                 "name": "Get SIM Error",
-                "command": "adb1 shell sldd telephony getSimError",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getSimError",
                 "category": "sim"
             },
             {
                 "id": "sim_prof_count",
                 "name": "Get SIM Profile Count",
-                "command": "adb1 shell sldd telephony getSimProfCount",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getSimProfCount",
                 "category": "sim"
             },
             {
                 "id": "sim_power_down",
                 "name": "Set SIM Power DOWN",
-                "command": "adb1 shell sldd telephony setSimCardPower down",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setSimCardPower down",
                 "category": "sim"
             },
             {
                 "id": "sim_power_up",
                 "name": "Set SIM Power UP",
-                "command": "adb1 shell sldd telephony setSimCardPower up",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setSimCardPower up",
                 "category": "sim"
             },
             {
                 "id": "net_reg_state",
                 "name": "Get Network Reg State",
-                "command": "adb1 shell sldd telephony getNetRegState",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetRegState",
                 "category": "network"
             },
             {
                 "id": "service_state",
                 "name": "Get Service State",
-                "command": "adb1 shell sldd telephony getServiceState",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getServiceState",
                 "category": "network"
             },
             {
                 "id": "signal_strength",
                 "name": "Get Signal Strength",
-                "command": "adb1 shell sldd telephony getSignalStrength",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getSignalStrength",
                 "category": "network"
             },
             {
                 "id": "lac",
                 "name": "Get LAC",
-                "command": "adb1 shell sldd telephony getLac",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getLac",
                 "category": "network"
             },
             {
                 "id": "cid",
                 "name": "Get CID",
-                "command": "adb1 shell sldd telephony getCid",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getCid",
                 "category": "network"
             },
             {
                 "id": "net_type",
                 "name": "Get Network Type",
-                "command": "adb1 shell sldd telephony getNetType",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetType",
                 "category": "network"
             },
             {
                 "id": "net_oper",
                 "name": "Get Network Operator",
-                "command": "adb1 shell sldd telephony getNetOper",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetOper",
                 "category": "network"
             },
             {
                 "id": "temperature",
                 "name": "Get Temperature",
-                "command": "adb1 shell sldd telephony getTemperature",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getTemperature",
                 "category": "network"
             },
             {
                 "id": "net_class",
                 "name": "Get Network Class",
-                "command": "adb1 shell sldd telephony getNetClass",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetClass",
                 "category": "network"
             },
             {
                 "id": "pref_net_type",
                 "name": "Get Preferred Net Type",
-                "command": "adb1 shell sldd telephony getPrefNetType",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getPrefNetType",
                 "category": "network"
             },
             {
                 "id": "radio_on",
                 "name": "Is Radio On",
-                "command": "adb1 shell sldd telephony isRadioOn",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony isRadioOn",
                 "category": "network"
             },
             {
                 "id": "radio_off",
                 "name": "Set Radio Power OFF",
-                "command": "adb1 shell sldd telephony setradiopower off",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setradiopower off",
                 "category": "network"
             },
             {
                 "id": "radio_on_cmd",
                 "name": "Set Radio Power ON",
-                "command": "adb1 shell sldd telephony setRadiopower on",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setRadiopower on",
                 "category": "network"
             },
             {
                 "id": "net_oper_name",
                 "name": "Get Net Operator Name",
-                "command": "adb1 shell sldd telephony getNetOperName",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetOperName",
                 "category": "network"
             },
             {
                 "id": "net_roaming",
                 "name": "Is Network Roaming",
-                "command": "adb1 shell sldd telephony isNetRoaming",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony isNetRoaming",
                 "category": "network"
             },
             {
                 "id": "net_country",
                 "name": "Get Network Country ISO",
-                "command": "adb1 shell sldd telephony getNetCountryIso",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetCountryIso",
                 "category": "network"
             },
             {
                 "id": "data_net_type",
                 "name": "Get Data Network Type",
-                "command": "adb1 shell sldd telephony getDataNetType",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getDataNetType",
                 "category": "network"
             },
             {
                 "id": "voice_net_type",
                 "name": "Get Voice Network Type",
-                "command": "adb1 shell sldd telephony getVoiceNetType",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getVoiceNetType",
                 "category": "network"
             },
             {
                 "id": "net_type_name",
                 "name": "Get Network Type Name",
-                "command": "adb1 shell sldd telephony getNetTypeName",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetTypeName",
                 "category": "network"
             },
             {
                 "id": "set_pref_net_11",
                 "name": "Set Pref Net Type 11",
-                "command": "adb1 shell sldd telephony setPrefNetType 11",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setPrefNetType 11",
                 "category": "network"
             },
             {
                 "id": "net_sel_auto",
                 "name": "Set Net Sel Mode Auto",
-                "command": "adb1 shell sldd telephony setNetSelModeAuto",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setNetSelModeAuto",
                 "category": "network"
             },
             {
                 "id": "get_net_sel_mode",
                 "name": "Get Net Sel Mode",
-                "command": "adb1 shell sldd telephony getNetSelMode",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetSelMode",
                 "category": "network"
             },
             {
                 "id": "get_pci",
                 "name": "Get PCI",
-                "command": "adb1 shell sldd telephony getPci",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getPci",
                 "category": "network"
             },
             {
                 "id": "enbid",
                 "name": "Get ENB ID",
-                "command": "adb1 shell sldd telephony getEnbid",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getEnbid",
                 "category": "network"
             },
             {
                 "id": "signal_asu",
                 "name": "Get Signal ASU",
-                "command": "adb1 shell sldd telephony getSignalAsu",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getSignalAsu",
                 "category": "network"
             },
             {
                 "id": "signal_level",
                 "name": "Get Signal Level",
-                "command": "adb1 shell sldd telephony getSignalLevel",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getSignalLevel",
                 "category": "network"
             },
             {
                 "id": "get_snr",
                 "name": "Get SNR",
-                "command": "adb1 shell sldd telephony getSnr",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getSnr",
                 "category": "network"
             },
             {
                 "id": "net_time",
                 "name": "Get Network Time",
-                "command": "adb1 shell sldd telephony getNetTime",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetTime",
                 "category": "network"
             },
             {
                 "id": "flush_forbidden",
                 "name": "Flush Forbidden Networks",
-                "command": "adb1 shell sldd telephony flushForbiddenNetworks",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony flushForbiddenNetworks",
                 "category": "network"
             },
             {
                 "id": "get_session_state",
                 "name": "Get Session State",
-                "command": "adb1 shell sldd telephony getSessionState",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getSessionState",
                 "category": "network"
             },
             {
                 "id": "dial",
                 "name": "Dial Number",
-                "command": "adb1 shell sldd telephony dial 7717487889",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony dial 7717487889",
                 "category": "call"
             },
             {
                 "id": "call_state",
                 "name": "Get Call State",
-                "command": "adb1 shell sldd telephony getCallState",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getCallState",
                 "category": "call"
             },
             {
                 "id": "call_type",
                 "name": "Get Call Type",
-                "command": "adb1 shell sldd telephony getCallType",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getCallType",
                 "category": "call"
             },
             {
                 "id": "end_call",
                 "name": "End Call",
-                "command": "adb1 shell sldd telephony endCall",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony endCall",
+                "category": "call"
+            },
+            {
+                "id": "answer_call",
+                "name": "Answer Call",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony answerCall",
+                "category": "call"
+            },
+            {
+                "id": "reject_call",
+                "name": "Reject Call",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony rejectCall",
                 "category": "call"
             },
             {
                 "id": "emergency_list",
                 "name": "Get Emergency Numbers",
-                "command": "adb1 shell sldd telephony getEmergencyNumberList",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getEmergencyNumberList",
                 "category": "ecall"
             },
             {
                 "id": "audio_enabled",
                 "name": "Get Audio Enabled",
-                "command": "adb1 shell sldd telephony getAudioEnabled",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getAudioEnabled",
                 "category": "ecall"
             },
             {
                 "id": "ecall_mode",
                 "name": "eCall Get Mode",
-                "command": "adb1 shell sldd telephony eCallGetOperationMode",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony eCallGetOperationMode",
                 "category": "ecall"
             },
             {
                 "id": "era_ecall_mode",
                 "name": "ERA eCall Get Mode",
-                "command": "adb1 shell sldd telephony eraECallGetOperationMode",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony eraECallGetOperationMode",
                 "category": "ecall"
             },
             {
                 "id": "send_sms_default",
                 "name": "Send SMS (Default)",
-                "command": "adb1 shell sldd telephony sendSms16 7717487889 hello",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony sendSms16 7717487889 hello",
+                "category": "sms"
+            },
+            {
+                "id": "recv_sms",
+                "name": "Receive SMS",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony recvSms",
                 "category": "sms"
             },
             {
                 "id": "get_apn_list",
                 "name": "Get APN List",
-                "command": "adb1 shell sldd telephony getApnList",
-                "category": "data"
-            },
-            {
-                "id": "enable_apn_def",
-                "name": "Enable APN Type (Default)",
-                "command": "adb1 shell sldd telephony enableApnType default",
-                "category": "data"
-            },
-            {
-                "id": "get_data_roaming",
-                "name": "Get Data Roaming Enabled",
-                "command": "adb1 shell sldd telephony getDataRoamingEnabled",
-                "category": "data"
-            },
-            {
-                "id": "set_data_roaming",
-                "name": "Set Data Roaming Enabled (True)",
-                "command": "adb1 shell sldd telephony setDataRoamingEnabled true",
-                "category": "data"
-            },
-            {
-                "id": "get_apn_load",
-                "name": "Get APN Load Source",
-                "command": "adb1 shell sldd telephony getApnLoadSource",
-                "category": "data"
-            },
-            {
-                "id": "set_apn_load",
-                "name": "Set APN Load Source (XML)",
-                "command": "adb1 shell sldd telephony setApnLoadSource xml",
-                "category": "data"
-            },
-            {
-                "id": "set_user_data_on",
-                "name": "Set User Data Enabled (ON)",
-                "command": "adb1 shell sldd telephony setUserDataEnabled on default",
+                "command": "adb1 shell /usr/bin/factory/sldd data getApnList",
                 "category": "data"
             },
             {
                 "id": "get_data_state",
                 "name": "Get Data State (Default)",
-                "command": "adb1 shell sldd telephony getDataState default",
+                "command": "adb1 shell /usr/bin/factory/sldd data getstate default",
                 "category": "data"
             },
             {
-                "id": "get_data_prop",
-                "name": "Get Data Connect Property",
-                "command": "adb1 shell sldd telephony getDataConnectProperty default",
+                "id": "get_interface_info",
+                "name": "Get Interface Info (Default)",
+                "command": "adb1 shell /usr/bin/factory/sldd data getinterfaceInfo default 0",
                 "category": "data"
             },
             {
-                "id": "get_apn_addr",
-                "name": "Get APN Address",
-                "command": "adb1 shell sldd telephony getApnAddress default",
+                "id": "setup_data",
+                "name": "Setup Data (Default)",
+                "command": "adb1 shell /usr/bin/factory/sldd data setupData default",
                 "category": "data"
+            },
+            {
+                "id": "disconnect_data",
+                "name": "Disconnect Data (Default)",
+                "command": "adb1 shell /usr/bin/factory/sldd data disconnectData default",
+                "category": "data"
+            },
+            {
+                "id": "get_usage_list",
+                "name": "Get Usage List (rmnet_data1)",
+                "command": "adb1 shell /usr/bin/factory/sldd data getusagelist rmnet_data1",
+                "category": "data"
+            },
+            {
+                "id": "get_packet_loss",
+                "name": "Get Packet Loss (rmnet_data0)",
+                "command": "adb1 shell /usr/bin/factory/sldd data getpacketloss rmnet_data0",
+                "category": "data"
+            }
+        ]
+    },
+    "bmw_dual": {
+        "name": "BMW (Dual SIM)",
+        "variant": "Dual SIM",
+        "categories": [
+            "sim",
+            "network",
+            "call",
+            "ecall",
+            "sms",
+            "data"
+        ],
+        "commands": [
+            {
+                "id": "has_sim_0",
+                "name": "Has SIM Card (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony hassimcard 0",
+                "category": "sim"
+            },
+            {
+                "id": "has_sim_1",
+                "name": "Has SIM Card (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony hassimcard 1",
+                "category": "sim"
+            },
+            {
+                "id": "sim_state_0",
+                "name": "Get SIM State (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getsimstate 0",
+                "category": "sim"
+            },
+            {
+                "id": "sim_state_1",
+                "name": "Get SIM State (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getsimstate 1",
+                "category": "sim"
+            },
+            {
+                "id": "iccid_0",
+                "name": "Get ICCID (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony geticcid 0",
+                "category": "sim"
+            },
+            {
+                "id": "iccid_1",
+                "name": "Get ICCID (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony geticcid 1",
+                "category": "sim"
+            },
+            {
+                "id": "imei_0",
+                "name": "Get IMEI (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getimei 0",
+                "category": "sim"
+            },
+            {
+                "id": "imei_1",
+                "name": "Get IMEI (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getimei 1",
+                "category": "sim"
+            },
+            {
+                "id": "eid_0",
+                "name": "Get EID (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony geteid 0",
+                "category": "sim"
+            },
+            {
+                "id": "eid_1",
+                "name": "Get EID (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony geteid 1",
+                "category": "sim"
+            },
+            {
+                "id": "sim_oper_0",
+                "name": "Get SIM Operator MCC/MNC (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getsimoper 0",
+                "category": "sim"
+            },
+            {
+                "id": "sim_oper_1",
+                "name": "Get SIM Operator MCC/MNC (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getsimoper 1",
+                "category": "sim"
+            },
+            {
+                "id": "mcc_0",
+                "name": "Get MCC (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getmcc 0",
+                "category": "sim"
+            },
+            {
+                "id": "mcc_1",
+                "name": "Get MCC (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getmcc 1",
+                "category": "sim"
+            },
+            {
+                "id": "mnc_0",
+                "name": "Get MNC (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getmnc 0",
+                "category": "sim"
+            },
+            {
+                "id": "mnc_1",
+                "name": "Get MNC (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getmnc 1",
+                "category": "sim"
+            },
+            {
+                "id": "msisdn_0",
+                "name": "Get MSISDN (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getmsisdn 0",
+                "category": "sim"
+            },
+            {
+                "id": "msisdn_1",
+                "name": "Get MSISDN (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getmsisdn 1",
+                "category": "sim"
+            },
+            {
+                "id": "imsi_0",
+                "name": "Get IMSI (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getimsi 0",
+                "category": "sim"
+            },
+            {
+                "id": "imsi_1",
+                "name": "Get IMSI (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getimsi 1",
+                "category": "sim"
+            },
+            {
+                "id": "sim_country_0",
+                "name": "Get SIM Country ISO (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getsimcountryiso 0",
+                "category": "sim"
+            },
+            {
+                "id": "sim_country_1",
+                "name": "Get SIM Country ISO (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getsimcountryiso 1",
+                "category": "sim"
+            },
+            {
+                "id": "sim_pin_0",
+                "name": "Is SIM PIN Enabled (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony isSimPinEnabled 0",
+                "category": "sim"
+            },
+            {
+                "id": "sim_pin_1",
+                "name": "Is SIM PIN Enabled (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony isSimPinEnabled 1",
+                "category": "sim"
+            },
+            {
+                "id": "sim_power_down_0",
+                "name": "Set SIM Power DOWN (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setSimCardPower down 0",
+                "category": "sim"
+            },
+            {
+                "id": "sim_power_down_1",
+                "name": "Set SIM Power DOWN (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setSimCardPower down 1",
+                "category": "sim"
+            },
+            {
+                "id": "sim_power_up_0",
+                "name": "Set SIM Power UP (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setSimCardPower up 0",
+                "category": "sim"
+            },
+            {
+                "id": "sim_power_up_1",
+                "name": "Set SIM Power UP (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setSimCardPower up 1",
+                "category": "sim"
+            },
+            {
+                "id": "send_sms_0",
+                "name": "Send SMS (SIM 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony sendSms16 7717487889 hello 0",
+                "category": "sms"
+            },
+            {
+                "id": "send_sms_1",
+                "name": "Send SMS (SIM 2)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony sendSms16 7717487889 hello 1",
+                "category": "sms"
+            },
+            {
+                "id": "net_reg_state",
+                "name": "Get Network Reg State",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetRegState",
+                "category": "network"
+            },
+            {
+                "id": "service_state",
+                "name": "Get Service State",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getServiceState",
+                "category": "network"
+            },
+            {
+                "id": "signal_strength",
+                "name": "Get Signal Strength",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getSignalStrength",
+                "category": "network"
+            },
+            {
+                "id": "lac",
+                "name": "Get LAC",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getLac",
+                "category": "network"
+            },
+            {
+                "id": "cid",
+                "name": "Get CID",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getCid",
+                "category": "network"
+            },
+            {
+                "id": "net_type",
+                "name": "Get Network Type",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetType",
+                "category": "network"
+            },
+            {
+                "id": "net_oper",
+                "name": "Get Network Operator",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getNetOper",
+                "category": "network"
+            },
+            {
+                "id": "temperature",
+                "name": "Get Temperature",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getTemperature",
+                "category": "network"
+            },
+            {
+                "id": "radio_on",
+                "name": "Is Radio On",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony isRadioOn",
+                "category": "network"
+            },
+            {
+                "id": "radio_off",
+                "name": "Set Radio Power OFF",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setradiopower off",
+                "category": "network"
+            },
+            {
+                "id": "radio_on_cmd",
+                "name": "Set Radio Power ON",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setRadiopower on",
+                "category": "network"
+            },
+            {
+                "id": "dial",
+                "name": "Dial Number",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony dial 7717487889",
+                "category": "call"
+            },
+            {
+                "id": "call_state",
+                "name": "Get Call State",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getCallState",
+                "category": "call"
+            },
+            {
+                "id": "end_call",
+                "name": "End Call",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony endCall",
+                "category": "call"
+            },
+            {
+                "id": "emergency_list",
+                "name": "Get Emergency Numbers",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getEmergencyNumberList",
+                "category": "ecall"
+            },
+            {
+                "id": "ecall_mode",
+                "name": "eCall Get Mode",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony eCallGetOperationMode",
+                "category": "ecall"
+            },
+            {
+                "id": "data_state_default",
+                "name": "Data State (Default)",
+                "command": "adb1 shell /usr/bin/factory/sldd data getstate default",
+                "category": "data"
+            },
+            {
+                "id": "data_state_dun_1",
+                "name": "Data State (DUN 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd data getstate dun 1",
+                "category": "data"
+            },
+            {
+                "id": "data_ip_default",
+                "name": "Data IP (Default)",
+                "command": "adb1 shell /usr/bin/factory/sldd data getip default",
+                "category": "data"
+            },
+            {
+                "id": "data_ip_dun_1",
+                "name": "Data IP (DUN 1)",
+                "command": "adb1 shell /usr/bin/factory/sldd data getip dun 1",
+                "category": "data"
+            },
+            {
+                "id": "get_interface_info_default",
+                "name": "Get Interface Info (Default 0)",
+                "command": "adb1 shell /usr/bin/factory/sldd data getinterfaceInfo default 0",
+                "category": "data"
+            },
+            {
+                "id": "get_usage_list",
+                "name": "Get Usage List (rmnet_data1)",
+                "command": "adb1 shell /usr/bin/factory/sldd data getusagelist rmnet_data1",
+                "category": "data"
+            },
+            {
+                "id": "get_packet_loss",
+                "name": "Get Packet Loss (rmnet_data0)",
+                "command": "adb1 shell /usr/bin/factory/sldd data getpacketloss rmnet_data0",
+                "category": "data"
+            },
+            {
+                "id": "reset_apn",
+                "name": "Reset APN (Default)",
+                "command": "adb1 shell /usr/bin/factory/sldd data resetApn default",
+                "category": "data"
+            },
+            {
+                "id": "disable_apn_type",
+                "name": "Disable APN Type",
+                "command": "adb1 shell /usr/bin/factory/sldd data disableApnType",
+                "category": "data"
+            },
+            {
+                "id": "answer_call",
+                "name": "Answer Call",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony answerCall",
+                "category": "call"
+            },
+            {
+                "id": "reject_call",
+                "name": "Reject Call",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony rejectCall",
+                "category": "call"
+            },
+            {
+                "id": "recv_sms",
+                "name": "Receive SMS",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony recvSms",
+                "category": "sms"
             }
         ]
     }

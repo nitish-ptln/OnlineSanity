@@ -2312,3 +2312,28 @@ html.light-theme .report-status-cell.report-pending {
     background-color: #f3f4f6;
     color: #4b5563;
 }
+
+/* Regression Lock Styles */
+.locked-feature {
+    filter: grayscale(0.8) opacity(0.7);
+    cursor: not-allowed !important;
+    position: relative;
+    pointer-events: auto !important;
+    /* Allow clicks to trigger the lock popup */
+}
+
+.locked-feature:hover::after {
+    content: "🔒 Locked during Regression";
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ef4444;
+    /* var(--error) */
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    z-index: 1000;
+}

@@ -133,12 +133,11 @@ const addGlobalNotification = (type, user, message, data = {}) => {
 
 // Map: serial -> { start, duration, user, iterations, steps }
 const regressionLocks = new Map();
+const dltProxies = new Map();
 
-const setupDltProxy = (publicPort, internalPort) => {
+const setupDltProxy = (publicPort, internalPort, serial) => {
     try {
         if (dltProxies.has(publicPort)) {
-            // If already bridge exists, we might need to check if internalPort changed, 
-            // but for now we assume it's the same or handled by adb forward update.
             return;
         }
 
@@ -159,7 +158,6 @@ const setupDltProxy = (publicPort, internalPort) => {
             });
         });
 
-        // Attach error handler BEFORE listening to catch sync errors
         proxy.on('error', (err) => {
             if (err.code === 'EADDRINUSE') {
                 console.warn(`[DLT Bridge] Public port ${publicPort} is occupied.`);
@@ -170,10 +168,10 @@ const setupDltProxy = (publicPort, internalPort) => {
         });
 
         proxy.listen(publicPort, '0.0.0.0', () => {
-            console.log(`[DLT BRIDGE] 🚀 Global access: ${getPrimaryIp()}:${publicPort} -> Device`);
+            console.log(`[DLT BRIDGE] 🚀 Global access: ${getPrimaryIp()}:${publicPort} -> Device ${serial || 'default'}`);
         });
 
-        dltProxies.set(publicPort, proxy);
+        dltProxies.set(publicPort, { proxy, serial, internalPort });
     } catch (e) {
         console.error(`[DLT Bridge ${publicPort}] Setup Failed:`, e);
     }
@@ -656,17 +654,7 @@ app.post('/api/execute', async (req, res) => {
     const adbBase = `${binary} -s ${targetDevice.id}`;
     let sanitized = command.trim().replace(/^(adb1?(\.exe)?\s+)/i, '');
 
-    // Check for REGRESSION LOCK
-    const lock = regressionLocks.get(requestedSerial);
-    if (lock && !sanitized.toLowerCase().includes('getprop') && !sanitized.toLowerCase().includes('svc')) {
-        // Block execution if it's not a read-only command (heuristic)
-        return res.json({
-            success: false,
-            error: 'DEVICE_LOCKED',
-            lock,
-            message: `Device is busy with a Regression Test (${lock.iterations} iterations).`
-        });
-    }
+    // Regression lock feature disabled - all users can execute commands freely
 
     const full = `${adbBase} ${sanitized}`;
     console.log(`[EXEC] ${full}`);
@@ -741,9 +729,7 @@ app.post('/api/reboot', async (req, res) => {
     const userConfig = userConfigs.get(id);
     const serial = userConfig?.serial;
 
-    if (serial && regressionLocks.has(serial.toLowerCase())) {
-        return res.json({ success: false, error: 'DEVICE_LOCKED', message: 'Reboot blocked: Regression test in progress.' });
-    }
+    // Regression lock feature disabled - reboot allowed anytime
 
     const result = await execAsync(`${binary} ${serial ? `-s ${serial}` : ''} reboot`);
     res.json(result);
@@ -896,7 +882,13 @@ app.post('/api/tools/launch-dlt', async (req, res) => {
     const id = getClientId(req);
     const userConfig = userConfigs.get(id);
     let target = '';
-    if (userConfig && userConfig.serial) target = `-s ${userConfig.serial}`;
+    let serial = '';
+    if (userConfig && userConfig.serial) {
+        serial = userConfig.serial;
+        target = `-s ${serial}`;
+    } else {
+        return res.status(400).json({ success: false, error: 'No device selected' });
+    }
 
     try {
         const publicPort = parseInt(port);
@@ -904,29 +896,40 @@ app.post('/api/tools/launch-dlt', async (req, res) => {
             return res.status(400).json({ success: false, error: 'Invalid port number' });
         }
 
-        const internalPort = publicPort + 1000; // Unique offset per port
+        // Use a deterministic internal port based on public port
+        const internalPort = publicPort + 1000;
 
-        // 1. Setup Internal Port Forwarding (Unique to this port)
-        console.log(`[DLT] Forwarding ${target || 'default'} to localhost:${internalPort}`);
-
-        // Try to remove existing forward to prevent "port already bound" errors if device changed
-        await execAsync(`${binary} ${target} forward --remove tcp:${internalPort}`).catch(() => { });
-
-        // Forward public internal port to device's DLT port (3490)
-        const adbRes = await execAsync(`${binary} ${target} forward tcp:${internalPort} tcp:3490`, 5000);
-
-        if (!adbRes.success) {
-            console.warn(`[DLT] ADB Forward Warning:`, adbRes.stderr || adbRes.stdout);
-            // We continue anyway, maybe it was already forwarded or works via fallback
+        // Check if this port is already bridged to ANOTHER device
+        const existing = dltProxies.get(publicPort);
+        if (existing) {
+            if (existing.serial !== serial) {
+                return res.status(409).json({
+                    success: false,
+                    error: `Port ${publicPort} is already in use by Device ${existing.serial}. Please pick another port.`
+                });
+            }
+            // Same device, already mapped. Just ensure ADB forward is alive.
+            console.log(`[DLT] Port ${publicPort} already bridged to ${serial}. Ensuring ADB forward...`);
         }
 
-        // 2. Setup/Ensure Bridge is running
-        setupDltProxy(publicPort, internalPort);
+        // 1. Setup ADB port forward: localhost:internalPort -> device:3490
+        console.log(`[DLT] User ${id} - Forwarding ${target} tcp:${internalPort} -> device tcp:3490`);
 
+        // We only need to run the forward once for this internalPort/Serial combo
+        // But running it again is harmless and ensures it's fresh
+        await execAsync(`${binary} ${target} forward tcp:${internalPort} tcp:3490`, 5000);
+
+        // 2. Setup/Reuse Bridge proxy
+        if (!existing) {
+            setupDltProxy(publicPort, internalPort, serial);
+        }
+
+        const serverIp = getPrimaryIp();
         res.json({
             success: true,
-            message: `DLT Bridge active on port ${publicPort}.`,
-            internalPort: internalPort
+            message: `DLT Bridge active. Connect your DLT Viewer to ${serverIp}:${publicPort}`,
+            ip: serverIp,
+            port: publicPort
         });
     } catch (error) {
         console.error(`[DLT] System Error:`, error);

@@ -1056,9 +1056,8 @@ class TelephonyManager {
             // Mark as not connected initially to force status refresh to update UI clean
             this.deviceConnected = false;
 
-            // AUTO-LAUNCH DLT FORWARDING (will run after status check confirms connection, or force it now)
-            // Better to wait for checkDeviceStatus, but we can try launch if we assume connection
-            // this.launchDLT(); // Let status check handle DLT or user action
+            // AUTO-LAUNCH DLT FORWARDING when device is connected/switched
+            this.launchDLT();
 
             this.checkDeviceStatus(true); // Trigger immediate refresh
         } catch (e) {
@@ -3066,6 +3065,11 @@ class TelephonyManager {
     async launchDLT() {
         try {
             const configText = document.getElementById('dltCurrentConfig');
+            if (!this.deviceConnected) {
+                // Don't attempt DLT bridge if no device is connected
+                if (configText) configText.textContent = `Bridge: ${this.dltPort}`;
+                return;
+            }
             if (configText) configText.textContent = `⏳ Bridge: ${this.dltPort}`;
 
             const response = await this.apiCall('/api/tools/launch-dlt', {
@@ -3089,13 +3093,15 @@ class TelephonyManager {
 
             const data = await response.json();
             if (data.success) {
-                if (configText) configText.textContent = `Bridge: ${this.dltPort}`;
-                console.log('[DLT] Bridge Ready on ' + this.dltPort);
+                if (configText) configText.textContent = `✅ Bridge: ${this.dltPort}`;
+                console.log('[DLT] Bridge Ready -', data.message);
             } else {
                 if (configText) configText.textContent = `❌ ${data.error || 'Setup Failed'}`;
             }
         } catch (e) {
             console.error('[DLT]', e);
+            const configText = document.getElementById('dltCurrentConfig');
+            if (configText) configText.textContent = `Bridge: ${this.dltPort}`;
         }
     }
 

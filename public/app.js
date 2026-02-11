@@ -2360,18 +2360,27 @@ class TelephonyManager {
     }
 
     getExpectedPattern(id) {
+        // Normalize ID to its core pattern name
+        // 1. Strip slot/variant suffixes like _0, _1, _default, _dun_1
+        let coreId = id.replace(/(_\d+|_\w+_\d+|_default|_dun_\d+)$/, '');
+        // 2. Strip common prefixes like get_ or is_
+        coreId = coreId.replace(/^(get_|is_)/, '');
+
         const patterns = {
             'sim_state': 'SIM state\\s*:\\s*5',
+            'has_sim': 'Result\\s*:\\s*true',
+            'sim_card': 'Result\\s*:\\s*true', // for hassimcard
             'iccid': 'ICCID\\s*:\\s*\\d+',
-            'eid': 'EID\\s*:',
+            'eid': 'E[iI][dD]\\s*:\\s*\\d+',
             'mcc': 'MCC\\s*:\\s*\\d+',
             'mnc': 'MNC\\s*:\\s*\\d+',
             'imei': 'IMEI\\s*:\\s*\\d+',
             'msisdn': 'MSISDN\\s*:',
             'imsi': 'IMSI\\s*:\\s*\\d+',
-            'sim_oper': 'SIM operator\\s*:\\s*\\d+',
+            'sim_oper': 'SIM (operator|MCC/MNC)\\s*:\\s*\\d+',
             'sim_country': 'SIM country ISO\\s*:\\s*\\w+',
             'sim_pin': 'SIM PIN Enabled\\s*:\\s*false',
+            'sim_pin_enabled': 'SIM PIN Enabled\\s*:\\s*false',
             'sim_error': 'SIM error\\s*:\\s*0',
             'sim_prof_count': 'SIM profile count\\s*:\\s*\\d+',
             'net_reg_state': 'Network registration state.*:\\s*1',
@@ -2383,23 +2392,27 @@ class TelephonyManager {
             'net_oper': 'Network operator\\s*:\\s*\\d+',
             'temperature': 'Temperature\\s*:\\s*(-1|\\d+)',
             'net_class': 'Network class\\s*:\\s*3',
-            'pref_net_type': 'Preferred network type\\s*:\\s*11',
+            'pref_net_type': 'Preferred network type\\s*:\\s*\\d+',
             'radio_on': 'Result\\s*:\\s*true',
             'net_oper_name': 'Network operator name\\s*:\\s*.+',
             'net_roaming': 'Network roaming\\s*:\\s*false',
             'net_country': 'Network country ISO\\s*:\\s*\\w+',
             'data_net_type': 'Data network type\\s*:\\s*14',
-            'get_apn_list': 'ProfileId',
+            'apn_list': 'Index \\(\\d+\\)',
             'enable_apn_def': 'Enable ApnType\\s*:\\s*[03]',
-            'getDataRoamingEnabled': 'Get data roaming enabled\\s*:\\s*false',
-            'setDataRoamingEnabled': 'set data roaming enabled\\s*:\\s*0',
-            'getApnLoadSource': 'get current  apn source\\s*:\\s*0',
-            'setUserDataEnabled': 'data enable or disable\\s*:\\s*0',
-            'getDataState': 'Data connection state\\s*:\\s*2',
-            'getDataConnectProperty': 'Connected',
-            'getApnAddress': 'Apn Address\\s*:\\s*.+'
+            'data_roaming_enabled': 'data roaming enabled\\s*:\\s*(false|0)',
+            'apn_load_source': 'apn source\\s*:\\s*0',
+            'user_data_enabled': 'data enable or disable\\s*:\\s*0',
+            'data_state': '(result|Data connection state)\\s*:\\s*(Connected|2)',
+            'data_connect_property': 'Connected',
+            'apn_address': 'Apn Address\\s*:\\s*.+',
+            'interface_info': 'Result APN\\s*:\\s*IpAddresses=',
+            'usage_list': 'DataUsage\\s*:\\s*\\{',
+            'packet_loss': 'getPacketLoss\\s*:\\s*\\{',
+            'setup_data': 'result\\s*:\\s*[01]',
+            'disconnect_data': 'result\\s*:\\s*[01]'
         };
-        return patterns[id];
+        return patterns[coreId] || patterns[id];
     }
 
     getExpectedOutputText(cmd) {

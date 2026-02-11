@@ -1599,7 +1599,7 @@
         ]
     },
     "bmw_single": {
-        "name": "BMW (Single SIM)",
+        "name": "BMW (WAVE LOW)",
         "variant": "Single SIM",
         "categories": [
             "sim",
@@ -2003,7 +2003,7 @@
         ]
     },
     "bmw_dual": {
-        "name": "BMW (Dual SIM)",
+        "name": "BMW (WAVE HIGH)",
         "variant": "Dual SIM",
         "categories": [
             "sim",

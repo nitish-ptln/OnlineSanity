@@ -516,8 +516,7 @@ app.get('/api/device-status', async (req, res) => {
         extraInfo,
         adbUsed: activeTarget ? `${binary} -s ${activeTarget}` : binary,
         debug: { serialStored: savedSerial, idsFound: devices.map(d => d.id) },
-        notifications: globalNotifications,
-        lock: savedSerial ? regressionLocks.get(savedSerial.toLowerCase()) : null
+        notifications: globalNotifications
     });
 });
 
@@ -561,27 +560,8 @@ app.get('/api/commands', (req, res) => {
     res.json({ commands: readJson(COMMANDS_FILE), categories: readJson(CATEGORIES_FILE) });
 });
 
-// LOCK Management
+// LOCK Management (disabled - kept for backward compatibility)
 app.post('/api/regression/lock', (req, res) => {
-    const { serial, active, duration, iterations, steps } = req.body;
-    const user = getClientId(req);
-
-    if (!serial) return res.status(400).json({ success: false, error: 'Serial required' });
-
-    const key = serial.toLowerCase();
-    if (active) {
-        regressionLocks.set(key, {
-            start: Date.now(),
-            duration: duration || 0,
-            user,
-            iterations: iterations || 0,
-            steps: steps || 0
-        });
-        addGlobalNotification('SYSTEM', 'SYSTEM', `Regression Lock activated for ${serial}`);
-    } else {
-        regressionLocks.delete(key);
-        addGlobalNotification('SYSTEM', 'SYSTEM', `Regression Lock released for ${serial}`);
-    }
     res.json({ success: true });
 });
 

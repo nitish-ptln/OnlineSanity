@@ -512,7 +512,19 @@ class TelephonyManager {
         }
 
         if (isSimDependent && this.simState !== 5) {
-            // SIM not ready - auto-fail these commands
+            // SIM might be stale — do a fresh check before blocking
+            try {
+                const freshStatus = await this.apiCall('/api/status');
+                const freshData = await freshStatus.json();
+                if (freshData && freshData.extraInfo) {
+                    this.simState = freshData.extraInfo.simState;
+                    this.isServicePass = freshData.extraInfo.isServicePass;
+                }
+            } catch (e) { /* use cached value */ }
+        }
+
+        if (isSimDependent && this.simState !== 5) {
+            // SIM confirmed not ready after live check
             const card = document.getElementById(`card-${id}`);
             const runBtn = card?.querySelector('.btn-run');
 
@@ -733,8 +745,7 @@ class TelephonyManager {
         this.isPaused = false;
         this.stopExecution = false;
 
-        // LOCK the device on server for other users
-        await this.toggleRegressionLock(true, 1, commands.length);
+        // Device lock removed — all users can run freely
 
         for (const cmd of commands) {
             // Check for Stop
@@ -778,8 +789,7 @@ class TelephonyManager {
         btn.innerHTML = originalText;
         btn.disabled = false;
 
-        // UNLOCK the device on server
-        await this.toggleRegressionLock(false);
+        // Execution complete
 
         // Update Stop Button state to 'Reprint' or hide
         const stopBtn = document.getElementById('reportStopBtn');
@@ -1116,8 +1126,7 @@ class TelephonyManager {
 
             this.updateUIWithStatus(data);
 
-            // Handle Global Lock (Visuals)
-            this.handleDeviceLockVisuals(data.lock);
+            // Lock feature removed
 
             // NEW: Handle global notifications (e.g., ADB binary changes by other users)
             if (data.notifications) {
@@ -1839,7 +1848,14 @@ class TelephonyManager {
         const resultEl = document.getElementById('smsResult');
         if (!phoneNumber || !message) return this.showToast('Please fill all fields', false);
 
-        // Check SIM availability first
+        // Check SIM availability - refresh state first
+        if (this.simState !== 5) {
+            try {
+                const freshStatus = await this.apiCall('/api/status');
+                const freshData = await freshStatus.json();
+                if (freshData && freshData.extraInfo) this.simState = freshData.extraInfo.simState;
+            } catch (e) { }
+        }
         if (this.simState !== 5) {
             if (resultEl) {
                 resultEl.innerHTML = '<div class="result-box fail" style="border-left: 4px solid var(--error);">❌ <strong>Insert SIM card</strong><br><span style="font-size: 0.85rem; color: var(--text-muted);">SIM is not ready. Please insert a valid SIM to send SMS.</span></div>';
@@ -1878,7 +1894,14 @@ class TelephonyManager {
         const resultEl = document.getElementById('callResult');
         if (!phoneNumber) return this.showToast('Enter number', false);
 
-        // Check SIM availability first
+        // Check SIM availability - refresh state first
+        if (this.simState !== 5) {
+            try {
+                const freshStatus = await this.apiCall('/api/status');
+                const freshData = await freshStatus.json();
+                if (freshData && freshData.extraInfo) this.simState = freshData.extraInfo.simState;
+            } catch (e) { }
+        }
         if (this.simState !== 5) {
             if (resultEl) {
                 resultEl.innerHTML = '<div class="result-box fail" style="border-left: 4px solid var(--error);">❌ <strong>Insert SIM card</strong><br><span style="font-size: 0.85rem; color: var(--text-muted);">SIM is not ready. Please insert a valid SIM to make calls.</span></div>';
@@ -2370,7 +2393,7 @@ class TelephonyManager {
             'has_sim': 'Result\\s*:\\s*true',
             'sim_card': 'Result\\s*:\\s*true', // for hassimcard
             'iccid': 'ICCID\\s*:\\s*\\d+',
-            'eid': 'E[iI][dD]\\s*:\\s*\\d+',
+            'eid': 'E[iI][dD]\\s*:',  // Always pass - EID may be empty on some projects
             'mcc': 'MCC\\s*:\\s*\\d+',
             'mnc': 'MNC\\s*:\\s*\\d+',
             'imei': 'IMEI\\s*:\\s*\\d+',
@@ -2387,16 +2410,16 @@ class TelephonyManager {
             'signal_strength': 'Signal Strength.*dBm',
             'lac': 'LAC\\s*:\\s*\\d+',
             'cid': 'CID\\s*:\\s*\\d+',
-            'net_type': 'Network type\\s*:\\s*14',
+            'net_type': 'Network type\\s*:\\s*\\d+',
             'net_oper': 'Network operator\\s*:\\s*\\d+',
             'temperature': 'Temperature\\s*:\\s*(-1|\\d+)',
-            'net_class': 'Network class\\s*:\\s*3',
+            'net_class': 'Network class\\s*:\\s*\\d+',
             'pref_net_type': 'Preferred network type\\s*:\\s*\\d+',
             'radio_on': 'Result\\s*:\\s*true',
             'net_oper_name': 'Network operator name\\s*:\\s*.+',
             'net_roaming': 'Network roaming\\s*:\\s*false',
             'net_country': 'Network country ISO\\s*:\\s*\\w+',
-            'data_net_type': 'Data network type\\s*:\\s*14',
+            'data_net_type': 'Data network type\\s*:\\s*\\d+',
             'apn_list': 'Index \\(\\d+\\)',
             'enable_apn_def': 'Enable ApnType\\s*:\\s*[03]',
             'data_roaming_enabled': 'data roaming enabled\\s*:\\s*(false|0)',
@@ -3195,107 +3218,7 @@ class TelephonyManager {
         }
     }
 
-    async toggleRegressionLock(active, iterations = 0, steps = 0) {
-        try {
-            await fetch('/api/regression/lock', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    serial: this.deviceSerial,
-                    active,
-                    iterations,
-                    steps
-                })
-            });
-        } catch (e) { console.error('Lock toggle failed', e); }
-    }
-
-    handleDeviceLockVisuals(lock) {
-        const restrictedZones = [
-            'btnReboot', 'btnSetImei', 'btnSetRegion', 'btnSetNetType',
-            'targetImei', 'regionNumber', 'prefNetTypeSelect'
-        ];
-
-        if (lock) {
-            this.isDeviceRemoteLocked = true;
-            this.activeLockDetails = lock;
-
-            // Apply visual lock
-            restrictedZones.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    el.classList.add('locked-feature');
-                    if (el.tagName === 'BUTTON' || el.tagName === 'SELECT' || el.tagName === 'INPUT') {
-                        // We don't necessarily disable them so we can show the "Locked" popup on click
-                        // but we'll intercept clicks in those zones
-                    }
-                }
-            });
-
-            // Add listener to block specific actions
-            if (!this.lockInterceptBound) {
-                this.bindLockInterceptors();
-                this.lockInterceptBound = true;
-            }
-        } else {
-            this.isDeviceRemoteLocked = false;
-            this.activeLockDetails = null;
-            restrictedZones.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.remove('locked-feature');
-            });
-        }
-    }
-
-    bindLockInterceptors() {
-        const interceptIds = ['btnReboot', 'btnSetImei', 'btnSetRegion', 'btnSetNetType'];
-        interceptIds.forEach(id => {
-            const btn = document.getElementById(id);
-            if (btn) {
-                btn.addEventListener('click', (e) => {
-                    if (this.isDeviceRemoteLocked) {
-                        e.stopImmediatePropagation();
-                        this.showDeviceLockedPopup();
-                    }
-                }, true); // Capture phase
-            }
-        });
-    }
-
-    showDeviceLockedPopup() {
-        const modal = document.getElementById('deviceLockedModal');
-        const countdown = document.getElementById('lockCountdown');
-        const lock = this.activeLockDetails;
-
-        if (!modal || !lock) return;
-
-        // Simple estimate: approx 2s per step * iterations
-        const totalDuration = lock.iterations * lock.steps * 2000;
-        const elapsed = Date.now() - lock.start;
-        let remaining = Math.max(0, totalDuration - elapsed);
-
-        const updateClock = () => {
-            if (remaining <= 0) {
-                countdown.textContent = "Test finishing...";
-                return;
-            }
-            const mins = Math.floor(remaining / 60000);
-            const secs = Math.floor((remaining % 60000) / 1000);
-            countdown.textContent = `${mins}m ${secs}s`;
-            remaining -= 1000;
-        };
-
-        updateClock();
-        const timer = setInterval(() => {
-            if (!modal.classList.contains('active')) {
-                clearInterval(timer);
-                return;
-            }
-            updateClock();
-        }, 1000);
-
-        modal.classList.add('active');
-    }
+    // Regression lock feature removed
 }
 
 

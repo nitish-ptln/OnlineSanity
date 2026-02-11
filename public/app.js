@@ -2415,7 +2415,9 @@ class TelephonyManager {
             'temperature': 'Temperature\\s*:\\s*(-1|\\d+)',
             'net_class': 'Network class\\s*:\\s*\\d+',
             'pref_net_type': 'Preferred network type\\s*:\\s*\\d+',
-            'radio_on': 'Result\\s*:\\s*true',
+            'radio_on': '(Result\\s*:\\s*true|Radio State\\s*:->\\s*\\d+)',
+            'radio_off': '(Result\\s*:\\s*true|Set radio power)',
+            'radio_on_cmd': '(Result\\s*:\\s*true|Set radio power)',
             'net_oper_name': 'Network operator name\\s*:\\s*.+',
             'net_roaming': 'Network roaming\\s*:\\s*false',
             'net_country': 'Network country ISO\\s*:\\s*\\w+',
@@ -2734,8 +2736,7 @@ class TelephonyManager {
         if (this.isRegressionRunning) return;
         if (!this.deviceConnected) return this.showToast('Connect device first', false);
 
-        // LOCK the device on server for other users
-        await this.toggleRegressionLock(true, iterations, sequence.length);
+        // Regression lock removed - no lock needed
 
         // Reset UI
         this.isRegressionRunning = true;
@@ -2905,8 +2906,7 @@ class TelephonyManager {
         document.getElementById('btnPauseRegression').style.display = 'none';
         stopBtn.style.display = 'none';
 
-        // UNLOCK the device on server for other users
-        await this.toggleRegressionLock(false);
+        // Regression lock removed - no unlock needed
 
         log.innerHTML += `<div style="color: var(--success); font-weight: bold; margin-top: 15px; border-top: 1px solid var(--success); padding-top: 10px;">
             ✅ REGRESSION COMPLETED: ${passCount} Pass, ${failCount} Fail

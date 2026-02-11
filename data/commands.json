@@ -1768,20 +1768,20 @@
             },
             {
                 "id": "radio_on",
-                "name": "Is Radio On",
-                "command": "adb1 shell /usr/bin/factory/sldd telephony isRadioOn",
+                "name": "Get Radio State",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getradiostate",
                 "category": "network"
             },
             {
                 "id": "radio_off",
-                "name": "Set Radio Power OFF",
-                "command": "adb1 shell /usr/bin/factory/sldd telephony setradiopower off",
+                "name": "Set Radio Power OFF (LPM)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setradiopower 0",
                 "category": "network"
             },
             {
                 "id": "radio_on_cmd",
                 "name": "Set Radio Power ON",
-                "command": "adb1 shell /usr/bin/factory/sldd telephony setRadiopower on",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setradiopower 1",
                 "category": "network"
             },
             {
@@ -2244,20 +2244,20 @@
             },
             {
                 "id": "radio_on",
-                "name": "Is Radio On",
-                "command": "adb1 shell /usr/bin/factory/sldd telephony isRadioOn",
+                "name": "Get Radio State",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony getradiostate",
                 "category": "network"
             },
             {
                 "id": "radio_off",
-                "name": "Set Radio Power OFF",
-                "command": "adb1 shell /usr/bin/factory/sldd telephony setradiopower off",
+                "name": "Set Radio Power OFF (LPM)",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setradiopower 0",
                 "category": "network"
             },
             {
                 "id": "radio_on_cmd",
                 "name": "Set Radio Power ON",
-                "command": "adb1 shell /usr/bin/factory/sldd telephony setRadiopower on",
+                "command": "adb1 shell /usr/bin/factory/sldd telephony setradiopower 1",
                 "category": "network"
             },
             {

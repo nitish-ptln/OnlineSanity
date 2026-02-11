@@ -110,6 +110,12 @@ class TelephonyManager {
 
         setInterval(() => this.checkDeviceStatus(), 5000);
         setInterval(() => this.fetchDevices(), 15000);
+
+        // Cleanup DLT proxy when tab is closed
+        window.addEventListener('beforeunload', () => {
+            const payload = JSON.stringify({ clientId: this.clientId });
+            navigator.sendBeacon('/api/tools/stop-dlt', new Blob([payload], { type: 'application/json' }));
+        });
     }
 
     async loadAllStaticData() {

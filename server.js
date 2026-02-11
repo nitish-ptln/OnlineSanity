@@ -171,7 +171,7 @@ const setupDltProxy = (publicPort, internalPort, serial) => {
             console.log(`[DLT BRIDGE] 🚀 Global access: ${getPrimaryIp()}:${publicPort} -> Device ${serial || 'default'}`);
         });
 
-        dltProxies.set(publicPort, { proxy, serial, internalPort });
+        dltProxies.set(publicPort, { proxy, serial, internalPort, clientId: null });
     } catch (e) {
         console.error(`[DLT Bridge ${publicPort}] Setup Failed:`, e);
     }
@@ -904,6 +904,10 @@ app.post('/api/tools/launch-dlt', async (req, res) => {
             setupDltProxy(publicPort, internalPort, serial);
         }
 
+        // Track ownership
+        const entry = dltProxies.get(publicPort);
+        if (entry) entry.clientId = id;
+
         const serverIp = getPrimaryIp();
         res.json({
             success: true,
@@ -915,6 +919,39 @@ app.post('/api/tools/launch-dlt', async (req, res) => {
         console.error(`[DLT] System Error:`, error);
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// Stop DLT Bridge when a tab closes
+app.post('/api/tools/stop-dlt', async (req, res) => {
+    // sendBeacon doesn't send custom headers, so read clientId from body as fallback
+    const clientId = req.body?.clientId || getClientId(req);
+    let cleaned = 0;
+
+    for (const [port, entry] of dltProxies.entries()) {
+        if (entry.clientId === clientId) {
+            try {
+                entry.proxy.close();
+                console.log(`[DLT] Cleaned up proxy on port ${port} (client ${clientId} disconnected)`);
+
+                // Also remove ADB forward
+                const userConfig = userConfigs.get(clientId);
+                if (userConfig) {
+                    const binary = getAdbBinary(userConfig);
+                    const target = userConfig.serial ? `-s ${userConfig.serial}` : '';
+                    try {
+                        await execAsync(`${binary} ${target} forward --remove tcp:${entry.internalPort}`, 3000);
+                        console.log(`[DLT] Removed ADB forward tcp:${entry.internalPort}`);
+                    } catch (e) { /* ignore if forward already gone */ }
+                }
+            } catch (e) {
+                console.error(`[DLT] Cleanup error for port ${port}:`, e.message);
+            }
+            dltProxies.delete(port);
+            cleaned++;
+        }
+    }
+
+    res.json({ success: true, cleaned });
 });
 
 const PORT = 3000;

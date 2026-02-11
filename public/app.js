@@ -3078,7 +3078,12 @@ class TelephonyManager {
             });
 
             if (!response.ok) {
-                if (configText) configText.textContent = `❌ Bridge Error`;
+                let errMsg = 'Bridge Error';
+                try {
+                    const errorData = await response.json();
+                    errMsg = errorData.error || errMsg;
+                } catch (e) { }
+                if (configText) configText.textContent = `❌ ${errMsg}`;
                 return;
             }
 
@@ -3087,7 +3092,7 @@ class TelephonyManager {
                 if (configText) configText.textContent = `Bridge: ${this.dltPort}`;
                 console.log('[DLT] Bridge Ready on ' + this.dltPort);
             } else {
-                if (configText) configText.textContent = `❌ ${data.error}`;
+                if (configText) configText.textContent = `❌ ${data.error || 'Setup Failed'}`;
             }
         } catch (e) {
             console.error('[DLT]', e);

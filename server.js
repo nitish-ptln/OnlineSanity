@@ -699,8 +699,13 @@ app.post('/api/set-region', async (req, res) => {
     const userConfig = userConfigs.get(id);
     let target = '';
     if (userConfig && userConfig.serial) target = `-s ${userConfig.serial}`;
+    // Determine sldd path - check if this is a BMW device
+    const serial = userConfig?.serial || '';
+    const stickyKey = `${binary}_${serial}`;
+    const swVersion = global.stickySwVersions?.get(stickyKey) || '';
+    const sldd = swVersion.includes('WAVE') ? '/usr/bin/factory/sldd' : 'sldd';
 
-    const command = `${binary} ${target} shell sldd region sethalsystemnation ${regionNumber}`;
+    const command = `${binary} ${target} shell ${sldd} region sethalsystemnation ${regionNumber}`;
     console.log(`[SET REGION] ${command}`);
     const result = await execAsync(command);
 

@@ -42,6 +42,11 @@ class TelephonyManager {
         this.deviceSerial = localStorage.getItem('adbSerial') || '';
         this.activeCallMonitor = null; // Track active call monitoring interval
         this.cachedSwVersion = null; // Cache SW version to reduce polling
+
+        // BMW-aware sldd path helper
+        this.getSlddCmd = () => {
+            return this.currentModel.includes('bmw') ? '/usr/bin/factory/sldd' : 'sldd';
+        };
         this.stopRegression = false;
         this.isRegressionRunning = false;
         this.isRegressionPaused = false;
@@ -585,7 +590,9 @@ class TelephonyManager {
             const expectedPattern = cmd.expected || this.getExpectedPattern(id);
             if (expectedPattern) { // Run validation regardless of result.success initially
                 const regex = new RegExp(expectedPattern, 'i');
-                const isMatch = regex.test(result.output);
+                // Strip the [SERIAL] prefix that server adds, so it doesn't interfere with pattern matching
+                const cleanOutput = (result.output || '').replace(/^\[\S+\]\s*/, '');
+                const isMatch = regex.test(cleanOutput);
                 if (!isMatch) {
                     result.success = false;
                     result.output = `[VALIDATION FAILED]\nExpected pattern: ${expectedPattern}\n\nActual Output:\n${result.output}`;
@@ -1756,7 +1763,7 @@ class TelephonyManager {
             try {
                 const response = await this.apiCall('/api/execute', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ command: 'shell sldd telephony getCallState' })
+                    body: JSON.stringify({ command: `shell ${this.getSlddCmd()} telephony getCallState` })
                 });
                 const data = await response.json();
                 const output = (data.output || '').toLowerCase();
@@ -1849,7 +1856,7 @@ class TelephonyManager {
         }
 
         try {
-            const cmd = `shell sldd telephony sendSms16 ${phoneNumber} "${message}"`;
+            const cmd = `shell ${this.getSlddCmd()} telephony sendSms16 ${phoneNumber} "${message}"`;
             const response = await this.apiCall('/api/execute', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ command: cmd })
@@ -1890,7 +1897,7 @@ class TelephonyManager {
         try {
             const response = await this.apiCall('/api/execute', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ command: `shell sldd telephony dial ${phoneNumber}` })
+                body: JSON.stringify({ command: `shell ${this.getSlddCmd()} telephony dial ${phoneNumber}` })
             });
             const result = await response.json();
             if (result.success) {
@@ -1919,7 +1926,7 @@ class TelephonyManager {
         try {
             await this.apiCall('/api/execute', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ command: 'shell sldd telephony endCall' })
+                body: JSON.stringify({ command: `shell ${this.getSlddCmd()} telephony endCall` })
             });
             this.showToast('Call ended', true);
             if (resultEl) {
@@ -1955,7 +1962,7 @@ class TelephonyManager {
             // Using /api/execute for exact command control as requested by user
             const response = await this.apiCall('/api/execute', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ command: `shell sldd telephony factorySetimei ${imei}` })
+                body: JSON.stringify({ command: `shell ${this.getSlddCmd()} telephony factorySetimei ${imei}` })
             });
             const result = await response.json();
             if (resultEl) {
@@ -1982,7 +1989,7 @@ class TelephonyManager {
         if (resultEl) resultEl.innerHTML = '';
 
         try {
-            const cmd = `adb1 shell sldd telephony setprefnettype ${val}`;
+            const cmd = `adb1 shell ${this.getSlddCmd()} telephony setprefnettype ${val}`;
             const response = await this.apiCall('/api/execute', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

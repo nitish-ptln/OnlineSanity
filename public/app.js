@@ -1069,11 +1069,11 @@ class TelephonyManager {
                 this.showToast(`Selected: ${serial || 'No device'}`, true, 1500);
             }
 
-            // Mark as not connected initially to force status refresh to update UI clean
-            this.deviceConnected = false;
-
             // AUTO-LAUNCH DLT FORWARDING when device is connected/switched
             this.launchDLT();
+
+            // Mark as not connected initially to force status refresh to update UI clean
+            this.deviceConnected = false;
 
             this.checkDeviceStatus(true); // Trigger immediate refresh
         } catch (e) {
@@ -3104,8 +3104,8 @@ class TelephonyManager {
     async launchDLT() {
         try {
             const configText = document.getElementById('dltCurrentConfig');
-            if (!this.deviceConnected) {
-                // Don't attempt DLT bridge if no device is connected
+            if (!this.deviceSerial) {
+                // Don't attempt DLT bridge if no device serial is set
                 if (configText) configText.textContent = `Bridge: ${this.dltPort}`;
                 return;
             }

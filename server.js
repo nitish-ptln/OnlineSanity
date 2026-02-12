@@ -380,21 +380,50 @@ app.get('/api/device-status', async (req, res) => {
         activeTarget = readyDevices[0].id;
     }
 
-    // C. Automatic Root for all ready devices
-    if (!global.rootedSerials) global.rootedSerials = new Set();
-    readyDevices.forEach(d => {
-        const serialKey = `${binary}_${d.id}`;
-        if (!global.rootedSerials.has(serialKey)) {
-            console.log(`[AUTO-ROOT] New device detected: ${d.id}. Running root...`);
-            // Run root in background, don't block
-            execAsync(`${binary} -s ${d.id} root`, 5000).catch(() => { });
-            global.rootedSerials.add(serialKey);
-        }
-    });
+    // C. Automatic Root for all ready devices (ONE-TIME per device)
+    // States: undefined = never seen, 'pending' = root command sent (device rebooting), 'done' = confirmed rooted
+    if (!global.rootStatus) global.rootStatus = new Map(); // serialKey -> 'pending' | 'done'
 
-    // D. Cleanup rootedSet: We avoid aggressive cleanup because adb root restarts the daemon,
-    // causing a temporary disconnect that triggers a loop if we remove it from the set.
-    // Periodic cleanup could be added here with a grace period if memory usage becomes a concern.
+    for (const d of readyDevices) {
+        const serialKey = `${binary}_${d.id}`;
+        const status = global.rootStatus.get(serialKey);
+
+        if (status === 'done') continue;       // Already rooted — skip
+        if (status === 'pending') continue;     // Root in progress — skip (device may be rebooting)
+
+        // First time seeing this device — check if already rooted
+        try {
+            const whoami = await execAsync(`${binary} -s ${d.id} shell whoami`, 3000);
+            const user = (whoami.stdout || '').trim().toLowerCase();
+
+            if (user === 'root') {
+                console.log(`[AUTO-ROOT] ${d.id} is already root. Skipping.`);
+                global.rootStatus.set(serialKey, 'done');
+            } else {
+                console.log(`[AUTO-ROOT] ${d.id} is NOT root (user=${user}). Rooting now...`);
+                global.rootStatus.set(serialKey, 'pending');
+
+                // Run root in background — device will disconnect briefly
+                execAsync(`${binary} -s ${d.id} root`, 10000)
+                    .then(() => {
+                        // Wait for device to come back online after adbd restart
+                        return execAsync(`${binary} -s ${d.id} wait-for-device`, 15000);
+                    })
+                    .then(() => {
+                        console.log(`[AUTO-ROOT] ${d.id} root complete. Device back online.`);
+                        global.rootStatus.set(serialKey, 'done');
+                    })
+                    .catch((e) => {
+                        console.error(`[AUTO-ROOT] ${d.id} root failed:`, e.message);
+                        // Mark done anyway to prevent retry loop — user can manually root via UI
+                        global.rootStatus.set(serialKey, 'done');
+                    });
+            }
+        } catch (e) {
+            // If whoami itself fails, device might be offline/unresponsive — skip for now (will retry next poll)
+            console.warn(`[AUTO-ROOT] ${d.id} whoami check failed: ${e.message}`);
+        }
+    }
 
     let extraInfo = {
         imei: '-', serviceState: '-', region: '-',

@@ -180,8 +180,8 @@ const setupDltProxy = (publicPort, internalPort, serial) => {
 // Global device cache for low-latency command execution
 let deviceCache = { devices: [], timestamp: 0 };
 let detailCache = new Map(); // serial -> { data, timestamp }
-const CACHE_TTL = 3000; // 3 seconds cache (slightly more aggressive for status)
-const DETAIL_TTL = 5000; // 5 seconds for deep details (IMEI, etc)
+const CACHE_TTL = 3000; // 3 seconds cache for device list
+const DETAIL_TTL = 10000; // 10 seconds for device details (IMEI, SIM, etc) — avoids ADB contention
 
 // Helper to get cached devices or refresh
 const getCachedDevices = async (binary) => {
@@ -417,6 +417,7 @@ app.get('/api/device-status', async (req, res) => {
         }
 
         const adbBase = `${binary} -s ${activeTarget}`;
+        let fetchSuccess = false;
         try {
             // First, quick check for version to identify device type (3s timeout to avoid blocking)
             const verResult = await execAsync(`${adbBase} shell cat etc/version`, 3000);
@@ -438,15 +439,21 @@ app.get('/api/device-status', async (req, res) => {
             const isBmw = extraInfo.swVersion.includes('WAVE');
             const sldd = isBmw ? '/usr/bin/factory/sldd' : 'sldd';
 
-            // Run commands in parallel for maximum UI speed (5s timeout for status)
-            const statusTimeout = 5000;
-            const [sim, imei, svc, reg, rad] = await Promise.all([
+            // Run commands in parallel (8s timeout — enough for slow devices)
+            const statusTimeout = 8000;
+            const results = await Promise.allSettled([
                 execAsync(`${adbBase} shell ${sldd} telephony getsimstate`, statusTimeout),
                 execAsync(`${adbBase} shell ${sldd} telephony getimei`, statusTimeout),
                 execAsync(`${adbBase} shell ${sldd} telephony getservicestate`, statusTimeout),
                 execAsync(`${adbBase} shell ${isBmw ? 'echo "Unknown"' : 'sldd region getnation; sldd region getRegionInfo'}`, statusTimeout),
                 execAsync(`${adbBase} shell "${sldd} telephony getradiostate; ${sldd} telephony isRadioOn"`, statusTimeout)
             ]);
+
+            const sim = results[0].status === 'fulfilled' ? results[0].value : null;
+            const imei = results[1].status === 'fulfilled' ? results[1].value : null;
+            const svc = results[2].status === 'fulfilled' ? results[2].value : null;
+            const reg = results[3].status === 'fulfilled' ? results[3].value : null;
+            const rad = results[4].status === 'fulfilled' ? results[4].value : null;
 
             const parse = (res, regex) => {
                 if (!res || !res.stdout) return null;
@@ -499,15 +506,24 @@ app.get('/api/device-status', async (req, res) => {
                 const out = rad.stdout;
                 // Support both legacy "RADIO_ON" and new "Result : true" formats
                 extraInfo.radioOn = out.includes('RADIO_ON') || /Result\s*:\s*true/i.test(out);
+                // BMW getradiostate returns "Radio State :-> 2 (RADIO ON)"
+                if (/Radio State\s*:->\s*[12]/i.test(out)) extraInfo.radioOn = true;
             }
+
+            // Only mark success if we got at least SOME real data
+            fetchSuccess = (extraInfo.imei !== '-' || extraInfo.simState !== -1);
         } catch (e) {
             console.error('[STATUS] Details fetch error:', e.message);
         }
-    }
 
-    // Update cache if we have fresh data
-    if (activeTarget && isConnected) {
-        detailCache.set(`${binary}_${activeTarget}`, { data: extraInfo, timestamp: Date.now() });
+        // Only cache GOOD data. If fetch failed, return stale cache instead of blanks.
+        if (fetchSuccess) {
+            detailCache.set(`${binary}_${activeTarget}`, { data: extraInfo, timestamp: Date.now() });
+        } else if (cached) {
+            // Fetch failed — serve last known good data instead of showing blanks
+            extraInfo = cached.data;
+            console.log(`[STATUS] Serving stale cache for ${activeTarget} (fresh fetch failed)`);
+        }
     }
 
     res.json({

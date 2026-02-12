@@ -520,7 +520,7 @@ class TelephonyManager {
         if (isSimDependent && this.simState !== 5) {
             // SIM might be stale — do a fresh check before blocking
             try {
-                const freshStatus = await this.apiCall('/api/status');
+                const freshStatus = await this.apiCall('/api/device-status');
                 const freshData = await freshStatus.json();
                 if (freshData && freshData.extraInfo) {
                     this.simState = freshData.extraInfo.simState;
@@ -1084,6 +1084,10 @@ class TelephonyManager {
     async checkDeviceStatus(force = false) {
         if (this.isRunningAll || this.isRegressionRunning) return;
 
+        // Prevent overlapping requests — if a previous check is still running, skip
+        if (this._statusCheckInFlight && !force) return;
+        this._statusCheckInFlight = true;
+
         const refreshBtn = document.getElementById('btnRefreshDevice');
         const originalBtnHtml = refreshBtn ? refreshBtn.innerHTML : '';
 
@@ -1126,6 +1130,7 @@ class TelephonyManager {
             this.lastStatusCache = newStatus;
 
             this.deviceConnected = data.connected;
+            this._statusFailCount = 0; // Reset failure counter on success
             this.simState = data.extraInfo ? data.extraInfo.simState : -1;
             this.serviceState = data.extraInfo ? data.extraInfo.serviceState : '-';
             this.isServicePass = data.extraInfo ? data.extraInfo.isServicePass : false;
@@ -1139,13 +1144,18 @@ class TelephonyManager {
                 this.handleGlobalNotifications(data.notifications);
             }
         } catch (e) {
-            // Only show popups for connection errors if we previously thought we were connected
-            if (this.deviceConnected && this.deviceSerial) {
+            // Don't wipe the status bar on transient errors. Only mark disconnected
+            // if we get repeated failures (debounce flickering).
+            this._statusFailCount = (this._statusFailCount || 0) + 1;
+            if (this._statusFailCount >= 3 && this.deviceConnected && this.deviceSerial) {
                 this.deviceConnected = false;
-                this.fetchDevices(); // Try to refresh list
+                this.fetchDevices();
+                this.updateUIWithStatus(null);
+                this._statusFailCount = 0;
             }
-            this.updateUIWithStatus(null);
+            // Otherwise: keep the last displayed status as-is
         } finally {
+            this._statusCheckInFlight = false;
             if (force && refreshBtn) {
                 refreshBtn.innerHTML = originalBtnHtml;
                 refreshBtn.disabled = false;
@@ -1857,7 +1867,7 @@ class TelephonyManager {
         // Check SIM availability - refresh state first
         if (this.simState !== 5) {
             try {
-                const freshStatus = await this.apiCall('/api/status');
+                const freshStatus = await this.apiCall('/api/device-status');
                 const freshData = await freshStatus.json();
                 if (freshData && freshData.extraInfo) this.simState = freshData.extraInfo.simState;
             } catch (e) { }
@@ -1903,7 +1913,7 @@ class TelephonyManager {
         // Check SIM availability - refresh state first
         if (this.simState !== 5) {
             try {
-                const freshStatus = await this.apiCall('/api/status');
+                const freshStatus = await this.apiCall('/api/device-status');
                 const freshData = await freshStatus.json();
                 if (freshData && freshData.extraInfo) this.simState = freshData.extraInfo.simState;
             } catch (e) { }

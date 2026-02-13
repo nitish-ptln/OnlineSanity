@@ -471,7 +471,11 @@ app.get('/api/device-status', async (req, res) => {
     };
 
     // 4. Fetch details if we have an active target
-    if (isConnected && activeTarget) {
+    // Skip if device is currently being rooted (adbd restart — all ADB commands will fail)
+    const rootKey = `${binary}_${activeTarget}`;
+    const isRooting = global.rootStatus && global.rootStatus.get(rootKey) === 'pending';
+
+    if (isConnected && activeTarget && !isRooting) {
         // Cache Check
         const cacheKey = `${binary}_${activeTarget}`;
         const cached = detailCache.get(cacheKey);
@@ -579,18 +583,30 @@ app.get('/api/device-status', async (req, res) => {
             }
 
             // Only mark success if we got at least SOME real data
-            fetchSuccess = (extraInfo.imei !== '-' || extraInfo.simState !== -1);
+            fetchSuccess = (extraInfo.imei !== '-' || extraInfo.simState !== -1 ||
+                extraInfo.serviceState !== '-' || extraInfo.radioOn);
         } catch (e) {
             console.error('[STATUS] Details fetch error:', e.message);
         }
 
+        const cacheKeyForLog = `${binary}_${activeTarget}`;
+
         // Only cache GOOD data. If fetch failed, return stale cache instead of blanks.
         if (fetchSuccess) {
-            detailCache.set(`${binary}_${activeTarget}`, { data: extraInfo, timestamp: Date.now() });
+            detailCache.set(cacheKeyForLog, { data: extraInfo, timestamp: Date.now() });
+            // Reset stale counter on success
+            if (!global.staleCacheCount) global.staleCacheCount = new Map();
+            global.staleCacheCount.delete(cacheKeyForLog);
         } else if (cached) {
             // Fetch failed — serve last known good data instead of showing blanks
             extraInfo = cached.data;
-            console.log(`[STATUS] Serving stale cache for ${activeTarget} (fresh fetch failed)`);
+            // Suppress repeated stale cache logs — only log at 1st, 10th, 50th, etc.
+            if (!global.staleCacheCount) global.staleCacheCount = new Map();
+            const count = (global.staleCacheCount.get(cacheKeyForLog) || 0) + 1;
+            global.staleCacheCount.set(cacheKeyForLog, count);
+            if (count === 1 || count === 10 || count % 50 === 0) {
+                console.log(`[STATUS] Serving stale cache for ${activeTarget} (fresh fetch failed, #${count})`);
+            }
         }
     }
 

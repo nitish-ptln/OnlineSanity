@@ -52,8 +52,9 @@ class TelephonyManager {
         this.isRegressionPaused = false;
         this.regressionHistory = []; // Store detailed run data for export
 
-        // DLT Settings
-        this.dltPort = localStorage.getItem('dltPort') || '3490';
+        // DLT Settings — per-tab so each tab tracks its own assigned port
+        // Use sessionStorage first (per-tab), fallback to localStorage (user default)
+        this.dltPort = sessionStorage.getItem('dltPort') || localStorage.getItem('dltPort') || '3490';
 
         // Theme Init
         this.theme = localStorage.getItem('theme') || 'dark';
@@ -3164,7 +3165,7 @@ class TelephonyManager {
                 // If server auto-assigned a different port, update our local state
                 if (data.autoAssigned && actualPort !== parseInt(this.dltPort)) {
                     this.dltPort = String(actualPort);
-                    localStorage.setItem('dltPort', this.dltPort);
+                    sessionStorage.setItem('dltPort', this.dltPort);
                     this.showToast(`Port ${data.requestedPort} was in use. Auto-assigned port ${actualPort}`, true);
                 }
 
@@ -3200,7 +3201,8 @@ class TelephonyManager {
         }
 
         this.dltPort = port;
-        localStorage.setItem('dltPort', port);
+        sessionStorage.setItem('dltPort', port);
+        localStorage.setItem('dltPort', port); // Also save as user default for new tabs
 
         // Update sidebar text
         document.getElementById('dltCurrentConfig').textContent = `Bridge: ${port}`;

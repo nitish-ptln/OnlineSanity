@@ -604,16 +604,43 @@ class TelephonyManager {
                 this.monitorCallStatus(targetElId);
             }
 
-            // Global Validation Mapping
+            // ── GLOBAL FAILURE DETECTION ──────────────────────────
+            // Check for obvious failure indicators in the output FIRST.
+            // Some ADB commands return exit code 0 but the device output says FAILED.
+            const rawOutput = result.output || '';
+            const cleanOutput = rawOutput.replace(/^\[\S+\]\s*/, '');  // Strip [SERIAL] prefix
+
+            const failurePatterns = [
+                /\bFAILED\b/i,
+                /\bError\b.*:/i,
+                /\bException\b/i,
+                /\bnot found\b/i,
+                /\bUnknown command\b/i,
+                /\bcommand not found\b/i,
+                /\bNo such\b/i,
+                /\bPermission denied\b/i,
+                /\bSegmentation fault\b/i,
+                /\bAborted\b/i
+            ];
+
+            const hasFailureWord = failurePatterns.some(p => p.test(cleanOutput));
+
+            if (hasFailureWord && result.success) {
+                // Output clearly indicates failure — override the exit-code-based success
+                result.success = false;
+                result.output = `[OUTPUT INDICATES FAILURE]\n${rawOutput}`;
+            }
+
+            // ── EXPECTED PATTERN VALIDATION ──────────────────────────
+            // If there's a defined expected pattern, verify output matches it.
+            // This can ALSO flip success→false if the pattern doesn't match.
             const expectedPattern = cmd.expected || this.getExpectedPattern(id);
-            if (expectedPattern) { // Run validation regardless of result.success initially
+            if (expectedPattern && result.success) {
                 const regex = new RegExp(expectedPattern, 'i');
-                // Strip the [SERIAL] prefix that server adds, so it doesn't interfere with pattern matching
-                const cleanOutput = (result.output || '').replace(/^\[\S+\]\s*/, '');
                 const isMatch = regex.test(cleanOutput);
                 if (!isMatch) {
                     result.success = false;
-                    result.output = `[VALIDATION FAILED]\nExpected pattern: ${expectedPattern}\n\nActual Output:\n${result.output}`;
+                    result.output = `[VALIDATION FAILED]\nExpected pattern: ${expectedPattern}\n\nActual Output:\n${rawOutput}`;
                 }
             }
 

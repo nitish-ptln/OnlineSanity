@@ -26,5 +26,9 @@
     "data": {
         "label": "Data",
         "color": "#f59e0b"
+    },
+    "DCMPF": {
+        "label": "DCMPF",
+        "color": "#e82c2c"
     }
 }

@@ -8,14 +8,17 @@
             "network",
             "call",
             "sms",
-            "ecall"
+            "ecall",
+            "DCMPF"
         ],
         "commands": [
             {
                 "id": "get_region",
                 "name": "Get Region",
                 "command": "adb1 shell sldd region getnation",
-                "category": "region"
+                "category": "region",
+                "expected": "",
+                "excludeFromRunAll": false
             },
             {
                 "id": "set_hal_nation",
@@ -2363,5 +2366,19 @@
                 "category": "sms"
             }
         ]
+    },
+    "Lexus_2026": {
+        "name": "Lexus",
+        "variant": "",
+        "categories": [
+            "sim",
+            "network",
+            "call",
+            "sms",
+            "ecall",
+            "data",
+            "region"
+        ],
+        "commands": []
     }
 }

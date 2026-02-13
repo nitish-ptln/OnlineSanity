@@ -133,48 +133,87 @@ const addGlobalNotification = (type, user, message, data = {}) => {
 
 // Map: serial -> { start, duration, user, iterations, steps }
 const regressionLocks = new Map();
+
+// DLT Proxy Map: clientId -> { proxy, serial, publicPort, internalPort, binary }
+// Keyed by clientId so each user gets their own isolated DLT bridge
 const dltProxies = new Map();
 
+// Track which public ports are in use (for conflict-free auto-assignment)
+const usedDltPorts = new Set();
+
+/**
+ * Create a DLT TCP proxy on a given public port.
+ * Returns a Promise that resolves to the net.Server or rejects on error.
+ */
 const setupDltProxy = (publicPort, internalPort, serial) => {
-    try {
-        if (dltProxies.has(publicPort)) {
-            return;
+    return new Promise((resolve, reject) => {
+        try {
+            const proxy = net.createServer((clientSocket) => {
+                const serverSocket = net.connect(internalPort, '127.0.0.1', () => {
+                    clientSocket.pipe(serverSocket);
+                    serverSocket.pipe(clientSocket);
+                });
+
+                clientSocket.on('error', (err) => {
+                    console.error(`[DLT Bridge ${publicPort}] Client Error:`, err.message);
+                    serverSocket.destroy();
+                });
+
+                serverSocket.on('error', (err) => {
+                    console.error(`[DLT Bridge ${publicPort}] Internal socket error:`, err.message);
+                    clientSocket.destroy();
+                });
+            });
+
+            proxy.on('error', (err) => {
+                if (err.code === 'EADDRINUSE') {
+                    console.warn(`[DLT Bridge] Public port ${publicPort} is already occupied.`);
+                } else {
+                    console.error(`[DLT Bridge ${publicPort}] Proxy error:`, err);
+                }
+                reject(err);
+            });
+
+            proxy.listen(publicPort, '0.0.0.0', () => {
+                console.log(`[DLT BRIDGE] Active: ${getPrimaryIp()}:${publicPort} -> Device ${serial || 'default'}`);
+                resolve(proxy);
+            });
+        } catch (e) {
+            console.error(`[DLT Bridge ${publicPort}] Setup Failed:`, e);
+            reject(e);
         }
+    });
+};
 
-        const proxy = net.createServer((clientSocket) => {
-            const serverSocket = net.connect(internalPort, '127.0.0.1', () => {
-                clientSocket.pipe(serverSocket);
-                serverSocket.pipe(clientSocket);
-            });
+/**
+ * Cleanly tear down a DLT proxy for a given clientId.
+ * Closes the TCP server, removes ADB forward, frees the port.
+ */
+const cleanupDltProxy = async (clientId) => {
+    const entry = dltProxies.get(clientId);
+    if (!entry) return 0;
 
-            clientSocket.on('error', (err) => {
-                console.error(`[DLT Bridge ${publicPort}] Client Error:`, err.message);
-                serverSocket.destroy();
-            });
+    try {
+        entry.proxy.close();
+        console.log(`[DLT] Cleaned up proxy on port ${entry.publicPort} (client ${clientId})`);
 
-            serverSocket.on('error', (err) => {
-                console.error(`[DLT Bridge ${publicPort}] Internal socket error:`, err.message);
-                clientSocket.destroy();
-            });
-        });
-
-        proxy.on('error', (err) => {
-            if (err.code === 'EADDRINUSE') {
-                console.warn(`[DLT Bridge] Public port ${publicPort} is occupied.`);
-            } else {
-                console.error(`[DLT Bridge ${publicPort}] Proxy error:`, err);
-            }
-            dltProxies.delete(publicPort);
-        });
-
-        proxy.listen(publicPort, '0.0.0.0', () => {
-            console.log(`[DLT BRIDGE] 🚀 Global access: ${getPrimaryIp()}:${publicPort} -> Device ${serial || 'default'}`);
-        });
-
-        dltProxies.set(publicPort, { proxy, serial, internalPort, clientId: null });
+        // Remove ADB forward
+        const userConfig = userConfigs.get(clientId);
+        if (userConfig) {
+            const binary = userConfig.adbCommand || 'adb';
+            const target = entry.serial ? `-s ${entry.serial}` : '';
+            try {
+                await execAsync(`${binary} ${target} forward --remove tcp:${entry.internalPort}`, 3000);
+                console.log(`[DLT] Removed ADB forward tcp:${entry.internalPort}`);
+            } catch (e) { /* forward already gone */ }
+        }
     } catch (e) {
-        console.error(`[DLT Bridge ${publicPort}] Setup Failed:`, e);
+        console.error(`[DLT] Cleanup error for client ${clientId}:`, e.message);
     }
+
+    usedDltPorts.delete(entry.publicPort);
+    dltProxies.delete(clientId);
+    return 1;
 };
 
 // Global device cache for low-latency command execution
@@ -902,12 +941,12 @@ app.get('/api/categories', (req, res) => {
 app.post('/api/tools/launch-dlt', async (req, res) => {
     const { adbCommand, dltPort } = req.body;
     const binary = adbCommand || getAdbBinary(req);
-    const port = dltPort || 3490;
+    const requestedPort = parseInt(dltPort) || 3490;
 
-    const id = getClientId(req);
-    const userConfig = userConfigs.get(id);
-    let target = '';
+    const clientId = getClientId(req);
+    const userConfig = userConfigs.get(clientId);
     let serial = '';
+    let target = '';
     if (userConfig && userConfig.serial) {
         serial = userConfig.serial;
         target = `-s ${serial}`;
@@ -916,49 +955,95 @@ app.post('/api/tools/launch-dlt', async (req, res) => {
     }
 
     try {
-        const publicPort = parseInt(port);
-        if (isNaN(publicPort) || publicPort <= 0 || publicPort > 65535) {
+        if (isNaN(requestedPort) || requestedPort <= 0 || requestedPort > 65535) {
             return res.status(400).json({ success: false, error: 'Invalid port number' });
         }
 
-        // Use a deterministic internal port based on public port
-        const internalPort = publicPort + 1000;
-
-        // Check if this port is already bridged to ANOTHER device
-        const existing = dltProxies.get(publicPort);
+        // CHECK: Does this client already have a DLT proxy?
+        const existing = dltProxies.get(clientId);
         if (existing) {
-            if (existing.serial !== serial) {
-                return res.status(409).json({
-                    success: false,
-                    error: `Port ${publicPort} is already in use by Device ${existing.serial}. Please pick another port.`
+            if (existing.serial === serial && existing.publicPort === requestedPort) {
+                // Same device, same port — just refresh ADB forward and reuse
+                const internalPort = requestedPort + 1000;
+                await execAsync(`${binary} ${target} forward tcp:${internalPort} tcp:3490`, 5000);
+                console.log(`[DLT] ${clientId}: Reusing existing proxy on port ${requestedPort} -> ${serial}`);
+                return res.json({
+                    success: true,
+                    message: `DLT Bridge active. Connect your DLT Viewer to ${getPrimaryIp()}:${requestedPort}`,
+                    ip: getPrimaryIp(),
+                    port: requestedPort
                 });
             }
-            // Same device, already mapped. Just ensure ADB forward is alive.
-            console.log(`[DLT] Port ${publicPort} already bridged to ${serial}. Ensuring ADB forward...`);
+
+            // User switched device or port — tear down old proxy first
+            console.log(`[DLT] ${clientId}: Device/port changed (was ${existing.serial}:${existing.publicPort}, now ${serial}:${requestedPort}). Tearing down old proxy.`);
+            await cleanupDltProxy(clientId);
         }
 
-        // 1. Setup ADB port forward: localhost:internalPort -> device:3490
-        console.log(`[DLT] User ${id} - Forwarding ${target} tcp:${internalPort} -> device tcp:3490`);
+        // FIND a free port: start from requestedPort, try up to 10 alternatives
+        let assignedPort = requestedPort;
+        let proxyServer = null;
 
-        // We only need to run the forward once for this internalPort/Serial combo
-        // But running it again is harmless and ensures it's fresh
-        await execAsync(`${binary} ${target} forward tcp:${internalPort} tcp:3490`, 5000);
+        for (let attempt = 0; attempt < 10; attempt++) {
+            const tryPort = requestedPort + attempt;
+            if (tryPort > 65535) break;
 
-        // 2. Setup/Reuse Bridge proxy
-        if (!existing) {
-            setupDltProxy(publicPort, internalPort, serial);
+            if (usedDltPorts.has(tryPort)) {
+                console.log(`[DLT] Port ${tryPort} in use by another user. Trying ${tryPort + 1}...`);
+                continue;
+            }
+
+            const internalPort = tryPort + 1000;
+
+            // Setup ADB forward for THIS device
+            await execAsync(`${binary} ${target} forward tcp:${internalPort} tcp:3490`, 5000);
+
+            try {
+                proxyServer = await setupDltProxy(tryPort, internalPort, serial);
+                assignedPort = tryPort;
+                break;
+            } catch (err) {
+                // Port might be occupied by OS or another process — try next
+                // clean up ADB forward since we couldn't use it
+                await execAsync(`${binary} ${target} forward --remove tcp:${internalPort}`, 3000).catch(() => { });
+                console.log(`[DLT] Port ${tryPort} failed (${err.code || err.message}). Trying ${tryPort + 1}...`);
+                continue;
+            }
         }
 
-        // Track ownership
-        const entry = dltProxies.get(publicPort);
-        if (entry) entry.clientId = id;
+        if (!proxyServer) {
+            return res.status(500).json({
+                success: false,
+                error: `Could not find a free port starting from ${requestedPort}. Try a completely different port range.`
+            });
+        }
+
+        const internalPort = assignedPort + 1000;
+
+        // Store in clientId-keyed map
+        usedDltPorts.add(assignedPort);
+        dltProxies.set(clientId, {
+            proxy: proxyServer,
+            serial,
+            publicPort: assignedPort,
+            internalPort,
+            binary
+        });
 
         const serverIp = getPrimaryIp();
+        const portNote = assignedPort !== requestedPort
+            ? ` (requested ${requestedPort} was in use, auto-assigned ${assignedPort})`
+            : '';
+
+        console.log(`[DLT] ${clientId}: Bridge LIVE on ${serverIp}:${assignedPort} -> Device ${serial}${portNote}`);
+
         res.json({
             success: true,
-            message: `DLT Bridge active. Connect your DLT Viewer to ${serverIp}:${publicPort}`,
+            message: `DLT Bridge active. Connect your DLT Viewer to ${serverIp}:${assignedPort}${portNote}`,
             ip: serverIp,
-            port: publicPort
+            port: assignedPort,
+            requestedPort: requestedPort,
+            autoAssigned: assignedPort !== requestedPort
         });
     } catch (error) {
         console.error(`[DLT] System Error:`, error);
@@ -970,32 +1055,7 @@ app.post('/api/tools/launch-dlt', async (req, res) => {
 app.post('/api/tools/stop-dlt', async (req, res) => {
     // sendBeacon doesn't send custom headers, so read clientId from body as fallback
     const clientId = req.body?.clientId || getClientId(req);
-    let cleaned = 0;
-
-    for (const [port, entry] of dltProxies.entries()) {
-        if (entry.clientId === clientId) {
-            try {
-                entry.proxy.close();
-                console.log(`[DLT] Cleaned up proxy on port ${port} (client ${clientId} disconnected)`);
-
-                // Also remove ADB forward
-                const userConfig = userConfigs.get(clientId);
-                if (userConfig) {
-                    const binary = getAdbBinary(userConfig);
-                    const target = userConfig.serial ? `-s ${userConfig.serial}` : '';
-                    try {
-                        await execAsync(`${binary} ${target} forward --remove tcp:${entry.internalPort}`, 3000);
-                        console.log(`[DLT] Removed ADB forward tcp:${entry.internalPort}`);
-                    } catch (e) { /* ignore if forward already gone */ }
-                }
-            } catch (e) {
-                console.error(`[DLT] Cleanup error for port ${port}:`, e.message);
-            }
-            dltProxies.delete(port);
-            cleaned++;
-        }
-    }
-
+    const cleaned = await cleanupDltProxy(clientId);
     res.json({ success: true, cleaned });
 });
 

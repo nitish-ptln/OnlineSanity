@@ -3159,7 +3159,16 @@ class TelephonyManager {
 
             const data = await response.json();
             if (data.success) {
-                if (configText) configText.textContent = `✅ Bridge: ${this.dltPort}`;
+                const actualPort = data.port;
+
+                // If server auto-assigned a different port, update our local state
+                if (data.autoAssigned && actualPort !== parseInt(this.dltPort)) {
+                    this.dltPort = String(actualPort);
+                    localStorage.setItem('dltPort', this.dltPort);
+                    this.showToast(`Port ${data.requestedPort} was in use. Auto-assigned port ${actualPort}`, true);
+                }
+
+                if (configText) configText.textContent = `✅ Bridge: ${actualPort}`;
                 console.log('[DLT] Bridge Ready -', data.message);
             } else {
                 if (configText) configText.textContent = `❌ ${data.error || 'Setup Failed'}`;

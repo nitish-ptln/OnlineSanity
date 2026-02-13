@@ -30,7 +30,9 @@
                 "id": "sim_state",
                 "name": "Get SIM State",
                 "command": "adb1 shell sldd telephony getsimstate",
-                "category": "sim"
+                "category": "sim",
+                "expected": "",
+                "excludeFromRunAll": false
             },
             {
                 "id": "iccid",
